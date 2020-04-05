@@ -130,9 +130,7 @@ impl LanguageClient {
     ) -> Fallible<Option<Hover>> {
         let input: TextDocumentPositionParams = input.into();
         let mut client = self.get_client(language_id)?;
-        let response: Option<Hover> = client
-            .call_and_wait(request::HoverRequest::METHOD, input)
-            .await?;
+        let response: Option<Hover> = client.call(request::HoverRequest::METHOD, input).await?;
 
         Ok(response)
     }
@@ -210,9 +208,7 @@ impl LanguageClient {
             }),
         };
 
-        let res: InitializeResult = client
-            .call_and_wait(request::Initialize::METHOD, message)
-            .await?;
+        let res: InitializeResult = client.call(request::Initialize::METHOD, message).await?;
 
         let mut state = self.state.try_lock()?;
         state
@@ -224,7 +220,7 @@ impl LanguageClient {
 
     pub async fn shutdown(&self, language_id: &str) -> Fallible<()> {
         let mut client = self.get_client(language_id)?;
-        client.call_and_wait(request::Shutdown::METHOD, ()).await?;
+        client.call(request::Shutdown::METHOD, ()).await?;
         Ok(())
     }
 
@@ -250,7 +246,7 @@ impl LanguageClient {
         let input: TextDocumentPositionParams = input.into();
         let mut client = self.get_client(language_id)?;
         let message: Option<request::GotoImplementationResponse> = client
-            .call_and_wait(request::GotoImplementation::METHOD, input)
+            .call(request::GotoImplementation::METHOD, input)
             .await?;
         Ok(message)
     }
@@ -262,9 +258,8 @@ impl LanguageClient {
     ) -> Fallible<Option<Vec<lsp_types::Location>>> {
         let input: TextDocumentPositionParams = input.into();
         let mut client = self.get_client(language_id)?;
-        let message: Option<Vec<lsp_types::Location>> = client
-            .call_and_wait(request::References::METHOD, input)
-            .await?;
+        let message: Option<Vec<lsp_types::Location>> =
+            client.call(request::References::METHOD, input).await?;
         Ok(message)
     }
 
@@ -275,9 +270,8 @@ impl LanguageClient {
     ) -> Fallible<Option<request::GotoDefinitionResponse>> {
         let input: TextDocumentPositionParams = params.into();
         let mut client = self.get_client(language_id)?;
-        let message: Option<request::GotoDefinitionResponse> = client
-            .call_and_wait(request::GotoDefinition::METHOD, input)
-            .await?;
+        let message: Option<request::GotoDefinitionResponse> =
+            client.call(request::GotoDefinition::METHOD, input).await?;
         Ok(message)
     }
 
@@ -394,9 +388,8 @@ impl LanguageClient {
         };
 
         let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
-        let response: Option<Vec<CodeLens>> = client
-            .call_and_wait(request::CodeLensRequest::METHOD, input)
-            .await?;
+        let response: Option<Vec<CodeLens>> =
+            client.call(request::CodeLensRequest::METHOD, input).await?;
         let response = response.unwrap_or_default();
         if response.is_empty() {
             return Ok(vec![]);
@@ -458,7 +451,7 @@ impl LanguageClient {
     ) -> Fallible<CodeLens> {
         let mut client = self.get_client(language_id)?;
         let result: CodeLens = client
-            .call_and_wait(request::CodeLensResolve::METHOD, code_lens)
+            .call(request::CodeLensResolve::METHOD, code_lens)
             .await?;
         Ok(result)
     }
@@ -476,9 +469,7 @@ impl LanguageClient {
         };
 
         let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
-        let message = client
-            .call_and_wait(request::Completion::METHOD, input)
-            .await?;
+        let message = client.call(request::Completion::METHOD, input).await?;
 
         Ok(message)
     }

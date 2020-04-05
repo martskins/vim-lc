@@ -104,7 +104,7 @@ impl VLC {
 
     pub async fn call(&self, cmd: EvalParams) -> Fallible<()> {
         let mut client = VIM.clone().client;
-        client.call("call", cmd).await?;
+        client.notify("call", cmd).await?;
         Ok(())
     }
 

@@ -194,25 +194,6 @@ where
         Ok(())
     }
 
-    pub async fn call<M>(&mut self, method: &str, message: M) -> Fallible<u64>
-    where
-        M: Serialize,
-    {
-        let id_lock = self.id.try_lock()?;
-        let id = id_lock.fetch_add(1, Ordering::SeqCst);
-        drop(id_lock);
-
-        let message = jsonrpc_core::MethodCall {
-            jsonrpc: Some(jsonrpc_core::Version::V2),
-            method: method.into(),
-            params: message.to_params()?,
-            id: jsonrpc_core::Id::Num(id),
-        };
-
-        self.send_raw(message).await?;
-        Ok(id)
-    }
-
     async fn send_raw<M: Serialize>(&mut self, message: M) -> Fallible<()> {
         let message = serde_json::to_string(&message)?;
         log::error!("{:?} <== {}\n", self.server_id, message);
@@ -229,14 +210,26 @@ where
         Ok(())
     }
 
-    pub async fn call_and_wait<M, R>(&mut self, method: &str, message: M) -> Fallible<R>
+    pub async fn call<M, R>(&mut self, method: &str, message: M) -> Fallible<R>
     where
         M: Serialize + std::fmt::Debug + Clone,
         R: DeserializeOwned,
     {
         let (tx, rx) = crossbeam::bounded(1);
 
-        let id = self.call(method, message.clone()).await?;
+        let id_lock = self.id.try_lock()?;
+        let id = id_lock.fetch_add(1, Ordering::SeqCst);
+        drop(id_lock);
+
+        let message = jsonrpc_core::MethodCall {
+            jsonrpc: Some(jsonrpc_core::Version::V2),
+            method: method.into(),
+            params: message.to_params()?,
+            id: jsonrpc_core::Id::Num(id),
+        };
+
+        self.send_raw(message).await?;
+
         let mut pending_responses = self.pending_responses.try_lock()?;
         pending_responses.insert(jsonrpc_core::Id::Num(id), tx);
         drop(pending_responses);
