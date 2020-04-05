@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize)]
+pub struct VirtualText {
+    pub text: String,
+    pub line: u64,
+    pub hl_group: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct CompletionList {
     pub words: Vec<CompletionItem>,
 }
@@ -117,10 +124,25 @@ impl Into<QuickfixItem> for Diagnostic {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct TextDocumentIdentifier {
+    pub text_document: String,
+    pub language_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct TextDocumentContent {
     pub text_document: String,
     pub text: String,
     pub language_id: String,
+}
+
+impl Into<TextDocumentIdentifier> for TextDocumentContent {
+    fn into(self) -> TextDocumentIdentifier {
+        TextDocumentIdentifier {
+            text_document: self.text_document,
+            language_id: self.language_id,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

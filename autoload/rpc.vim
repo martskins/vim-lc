@@ -149,6 +149,9 @@ function! rpc#read(job, lines, event) abort
     " shows the preview window and sets it's content
     elseif l:method ==# 'showPreview'
       return vim#showPreview(l:params)
+    " shows the vitual texts for the current buffer
+    elseif l:method ==# 'setVirtualTexts'
+      return vim#setVirtualTexts(l:params)
     " shows the quickfix window and sets it's content
     elseif l:method ==# 'setQuickfix'
       return vim#setQuickfix(l:params)

@@ -69,6 +69,10 @@ impl VLC {
                     let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
                     self.completion(&message_id, params).await?;
                 }
+                "textDocument/codeLens" => {
+                    let params: TextDocumentIdentifier = serde_json::from_value(msg.params.into())?;
+                    self.code_lens(params).await?;
+                }
                 "textDocument/definition" => {
                     let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
                     self.definition(params).await?;

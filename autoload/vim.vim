@@ -33,6 +33,23 @@ function! vim#eval(params) abort
   return l:res
 endfunction
 
+function! vim#setVirtualTexts(params) abort
+  if type(a:params) !=# type([])
+    echoerr 'virtual texts list is not a list'
+  endif
+
+  let l:prefix = ''
+  if !exists('*nvim_buf_set_virtual_text')
+      return
+  endif
+
+  call nvim_buf_clear_namespace(0, -1, 0, -1)
+
+  for vt in a:params
+    call nvim_buf_set_virtual_text(0, -1, vt['line'], [[l:prefix . vt['text'], vt['hl_group']]], {})
+  endfor
+endfunction
+
 function! vim#setQuickfix(params) abort
   if type(a:params) !=# type([])
     echoerr 'quickfix list is not a list'

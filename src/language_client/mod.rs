@@ -210,16 +210,22 @@ impl LanguageClient {
             }),
         };
 
-        let _: InitializeResult = client
+        let res: InitializeResult = client
             .call_and_wait(request::Initialize::METHOD, message)
             .await?;
+
+        let mut state = self.state.try_lock()?;
+        state
+            .server_capabilities
+            .insert(language_id.into(), res.capabilities);
+
         Ok(())
     }
 
     pub async fn shutdown(&self, language_id: &str) -> Fallible<()> {
         let mut client = self.get_client(language_id)?;
-        let message: () = client.call_and_wait(request::Shutdown::METHOD, ()).await?;
-        Ok(message)
+        client.call_and_wait(request::Shutdown::METHOD, ()).await?;
+        Ok(())
     }
 
     pub async fn exit(&self, language_id: &str) -> Fallible<()> {
@@ -372,6 +378,89 @@ impl LanguageClient {
         client
             .notify(notification::DidOpenTextDocument::METHOD, input)
             .await
+    }
+
+    pub async fn text_document_code_lens(
+        &self,
+        language_id: &str,
+        input: super::vim::TextDocumentIdentifier,
+    ) -> Fallible<Vec<CodeLens>> {
+        let input = CodeLensParams {
+            text_document: TextDocumentIdentifier {
+                uri: Url::from_file_path(input.text_document).unwrap(),
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+
+        let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
+        let response: Option<Vec<CodeLens>> = client
+            .call_and_wait(request::CodeLensRequest::METHOD, input)
+            .await?;
+        let response = response.unwrap_or_default();
+        if response.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let state = self.state.try_lock()?;
+        let capabilities = state.server_capabilities.get(language_id);
+        if capabilities.is_none() {
+            return Ok(response);
+        }
+        let capabilities = capabilities.unwrap();
+
+        if capabilities.code_lens_provider.is_none() {
+            return Ok(response);
+        }
+        let code_lens_provider = capabilities.code_lens_provider.clone().unwrap();
+
+        if !code_lens_provider.resolve_provider.unwrap_or_default() {
+            return Ok(response);
+        }
+
+        let response = self.resolve_code_lens(language_id, response).await?;
+        Ok(response)
+    }
+
+    pub async fn resolve_code_lens(
+        &self,
+        language_id: &str,
+        input: Vec<CodeLens>,
+    ) -> Fallible<Vec<CodeLens>> {
+        let tasks: Vec<_> = input
+            .into_iter()
+            .map(|cl| {
+                let lc = self.clone();
+                let language_id = language_id.to_string();
+                tokio::task::spawn(async move {
+                    if cl.data.is_none() {
+                        return cl;
+                    }
+
+                    lc.code_lens_resolve(&language_id, &cl).await.unwrap_or(cl)
+                })
+            })
+            .collect();
+
+        let res = futures::future::join_all(tasks)
+            .await
+            .into_iter()
+            .filter(|c| c.is_ok())
+            .map(|c| c.unwrap())
+            .collect();
+        Ok(res)
+    }
+
+    pub async fn code_lens_resolve(
+        &self,
+        language_id: &str,
+        code_lens: &CodeLens,
+    ) -> Fallible<CodeLens> {
+        let mut client = self.get_client(language_id)?;
+        let result: CodeLens = client
+            .call_and_wait(request::CodeLensResolve::METHOD, code_lens)
+            .await?;
+        Ok(result)
     }
 
     pub async fn text_document_completion(

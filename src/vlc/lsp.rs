@@ -35,8 +35,9 @@ impl VLC {
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT
             .clone()
-            .text_document_did_open(&language_id, params.into())
+            .text_document_did_open(&language_id, params.clone().into())
             .await?;
+        self.code_lens(params.into()).await?;
         Ok(())
     }
 
@@ -44,8 +45,9 @@ impl VLC {
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT
             .clone()
-            .text_document_did_save(&language_id, params.into())
+            .text_document_did_save(&language_id, params.clone().into())
             .await?;
+        self.code_lens(params.into()).await?;
         Ok(())
     }
 
@@ -62,8 +64,9 @@ impl VLC {
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT
             .clone()
-            .text_document_did_change(&language_id, params.into())
+            .text_document_did_change(&language_id, params.clone().into())
             .await?;
+        self.code_lens(params.into()).await?;
         Ok(())
     }
 
@@ -135,6 +138,40 @@ impl VLC {
         Ok(())
     }
 
+    pub async fn code_lens(&self, params: TextDocumentIdentifier) -> Fallible<()> {
+        let language_id = params.language_id.clone();
+        let response: Vec<lsp_types::CodeLens> = LANGUAGE_CLIENT
+            .text_document_code_lens(&language_id, params)
+            .await?;
+        if response.is_empty() {
+            return Ok(());
+        }
+
+        let virtual_texts: Vec<Option<VirtualText>> = response
+            .into_iter()
+            .map(|cl| {
+                if cl.command.is_none() {
+                    return None;
+                }
+                let command = cl.command.unwrap();
+
+                let text = command.title;
+                let line = cl.range.start.line;
+
+                Some(VirtualText {
+                    line,
+                    text,
+                    hl_group: "Comment".into(),
+                })
+            })
+            .filter(|i| !i.is_none())
+            .collect();
+
+        let mut client = self.clone().client;
+        client.notify("setVirtualTexts", virtual_texts).await?;
+        Ok(())
+    }
+
     pub async fn completion(
         &self,
         message_id: &jsonrpc_core::Id,
@@ -142,7 +179,6 @@ impl VLC {
     ) -> Fallible<()> {
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
-            .clone()
             .text_document_completion(&language_id, params.into())
             .await?;
         if response.is_none() {
