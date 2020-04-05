@@ -83,6 +83,10 @@ impl VLC {
                     let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
                     self.definition(params).await?;
                 }
+                "textDocument/references" => {
+                    let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
+                    self.references(params).await?;
+                }
                 _ => log::debug!("unhandled method call {}", msg.method),
             },
             rpc::Message::Notification(msg) => match msg.method.as_str() {

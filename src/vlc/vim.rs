@@ -13,11 +13,13 @@ impl VLC {
             return self.jump_to_location(input.first().cloned().unwrap()).await;
         }
 
+        let pwd = std::env::current_dir()?;
+        let pwd = format!("file://{}/", pwd.to_str().unwrap());
         let list = input
             .into_iter()
             .map(|l| QuickfixItem {
                 bufnr: 0,
-                filename: l.filename,
+                filename: l.filename.replace(pwd.as_str(), ""),
                 lnum: l.line,
                 col: l.col,
                 text: String::new(),

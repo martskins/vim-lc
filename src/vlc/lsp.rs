@@ -18,6 +18,31 @@ impl VLC {
         Ok(())
     }
 
+    pub async fn references(&self, params: TextDocumentPosition) -> Fallible<()> {
+        let language_id = params.language_id.clone();
+        let response = LANGUAGE_CLIENT
+            .clone()
+            .text_document_references(&language_id, params.into())
+            .await?;
+        if response.is_none() {
+            return Ok(());
+        }
+
+        let vim = super::VIM.clone();
+        let response = response.unwrap();
+        match response.len() {
+            1 => {
+                vim.jump_to_location(response.first().cloned().unwrap().into())
+                    .await?;
+            }
+            _ => {
+                let locations = response.into_iter().map(|l| l.into()).collect();
+                vim.show_locations(locations).await?;
+            }
+        }
+
+        Ok(())
+    }
     pub async fn definition(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT

@@ -185,6 +185,19 @@ impl LanguageClient {
         Ok(())
     }
 
+    pub async fn text_document_references(
+        &self,
+        language_id: &str,
+        input: super::vim::TextDocumentPosition,
+    ) -> Fallible<Option<Vec<lsp_types::Location>>> {
+        let input: TextDocumentPositionParams = input.into();
+        let mut client = self.get_client(language_id)?;
+        let message: Option<Vec<lsp_types::Location>> = client
+            .call_and_wait(request::References::METHOD, input)
+            .await?;
+        Ok(message)
+    }
+
     pub async fn text_document_definition(
         &self,
         language_id: &str,
