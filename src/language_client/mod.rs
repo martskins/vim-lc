@@ -1,10 +1,10 @@
-use crate::config::Config;
 use crate::rpc;
 use crate::state::State;
 use crate::vim;
-use crate::vlc::VIM;
+use crate::CONFIG;
+use crate::LANGUAGE_CLIENT;
+use crate::VIM;
 use failure::Fallible;
-use lazy_static::lazy_static;
 use lsp_types::notification::Notification;
 use lsp_types::request::Request;
 use lsp_types::*;
@@ -15,31 +15,20 @@ use tokio::io::BufReader;
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::Mutex;
 
-lazy_static! {
-    pub static ref LANGUAGE_CLIENT: LanguageClient = LanguageClient::new();
-}
-
 type Client = rpc::Client<BufReader<ChildStdout>, ChildStdin>;
 
 #[derive(Debug, Clone)]
 pub struct LanguageClient {
     clients: Arc<Mutex<HashMap<String, Client>>>,
     state: Arc<Mutex<State>>,
-    config: Config,
 }
 
 impl LanguageClient {
     pub fn new() -> Self {
         let clients = Arc::new(Mutex::new(HashMap::new()));
-        let config =
-            futures::executor::block_on(Config::parse("/home/martin/Desktop/config.toml")).unwrap();
         let state = Arc::new(Mutex::new(State::default()));
 
-        Self {
-            clients,
-            state,
-            config,
-        }
+        Self { clients, state }
     }
 
     fn spawn_reader(&self, language_id: String, mut client: Client) -> Fallible<()> {
@@ -62,7 +51,7 @@ impl LanguageClient {
     }
 
     pub async fn start_server(&mut self, language_id: &str) -> Fallible<()> {
-        let binpath = self.config.servers.get(language_id);
+        let binpath = CONFIG.servers.get(language_id);
         if binpath.is_none() {
             return Ok(());
         }

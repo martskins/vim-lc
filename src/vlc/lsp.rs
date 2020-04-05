@@ -1,6 +1,6 @@
 use super::VLC;
-use crate::language_client::LANGUAGE_CLIENT;
 use crate::vim::*;
+use crate::LANGUAGE_CLIENT;
 use failure::Fallible;
 
 impl VLC {

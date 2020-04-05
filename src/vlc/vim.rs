@@ -1,6 +1,6 @@
-use super::VIM;
 use super::VLC;
 use crate::vim::*;
+use crate::VIM;
 use failure::Fallible;
 
 impl VLC {
