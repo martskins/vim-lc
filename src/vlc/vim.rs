@@ -4,6 +4,24 @@ use crate::VIM;
 use failure::Fallible;
 
 impl VLC {
+    pub async fn show_diagnostics(&self, mut diagnostics: Vec<Diagnostic>) -> Fallible<()> {
+        let pwd = std::env::current_dir()?;
+        let pwd = format!("file://{}/", pwd.to_str().unwrap());
+
+        diagnostics.iter_mut().for_each(|d| {
+            d.text_document = d.text_document.replace(pwd.as_str(), "");
+        });
+
+        let quickfix_list: Vec<QuickfixItem> =
+            diagnostics.clone().into_iter().map(|l| l.into()).collect();
+        self.set_quickfix(quickfix_list).await?;
+
+        let signs: Vec<Sign> = diagnostics.into_iter().map(|l| l.into()).collect();
+        self.set_signs(signs).await?;
+
+        Ok(())
+    }
+
     pub async fn show_locations(&self, input: Vec<Location>) -> Fallible<()> {
         if input.is_empty() {
             return Ok(());
@@ -40,6 +58,12 @@ impl VLC {
     pub async fn call(&self, cmd: EvalParams) -> Fallible<()> {
         let mut client = VIM.clone().client;
         client.call("call", cmd).await?;
+        Ok(())
+    }
+
+    async fn set_signs(&self, list: Vec<Sign>) -> Fallible<()> {
+        let mut client = VIM.clone().client;
+        client.notify("setSigns", list).await?;
         Ok(())
     }
 

@@ -13,13 +13,11 @@ command! VLCStart         call vim#start()
 
 call sign_define('vlc_error', {
   \ 'text' : '!!',
-  \ 'texthl' : 'Error',
-  \ 'linehl' : 'Search'})
+  \ 'texthl' : 'Error' })
 
 call sign_define('vlc_warn', {
   \ 'text' : '--',
-  \ 'texthl' : 'Warn',
-  \ 'linehl' : 'Search'})
+  \ 'texthl' : 'Warn'})
 
 augroup vlc
     autocmd!

@@ -98,6 +98,11 @@ impl LanguageClient {
                         serde_json::from_value(msg.params.into())?;
                     VIM.log_message(params).await?;
                 }
+                "textDocument/publishDiagnostics" => {
+                    let params: lsp_types::PublishDiagnosticsParams =
+                        serde_json::from_value(msg.params.into())?;
+                    self.text_document_publish_diagnostics(params).await?;
+                }
                 "$/progress" => {
                     let params: lsp_types::ProgressParams =
                         serde_json::from_value(msg.params.into())?;
@@ -111,7 +116,7 @@ impl LanguageClient {
                 _ => log::debug!("unhandled notification {}", msg.method),
             },
             rpc::Message::Output(o) => {
-                let mut client = self.get_client(language_id)?;
+                let client = self.get_client(language_id)?;
                 client.resolve(&message_id, o.clone()).await?;
             }
         }
@@ -119,11 +124,34 @@ impl LanguageClient {
         Ok(())
     }
 
+    pub async fn text_document_publish_diagnostics(
+        &self,
+        input: PublishDiagnosticsParams,
+    ) -> Fallible<()> {
+        if input.diagnostics.is_empty() {
+            return Ok(());
+        }
+
+        let uri = input.uri.to_string();
+        let diagnostics = input
+            .diagnostics
+            .into_iter()
+            .map(|d| vim::Diagnostic {
+                text_document: uri.clone(),
+                line: d.range.start.line + 1,
+                col: d.range.start.character + 1,
+                text: d.message,
+                severity: d.severity.unwrap_or(DiagnosticSeverity::Warning),
+            })
+            .collect();
+
+        VIM.show_diagnostics(diagnostics).await?;
+        Ok(())
+    }
+
     pub async fn window_show_message(&self, input: ShowMessageParams) -> Fallible<()> {
         let message = input.message;
-        VIM.clone()
-            .show_message(vim::Message { message, level: 3 })
-            .await?;
+        VIM.show_message(vim::Message { message, level: 3 }).await?;
 
         Ok(())
     }

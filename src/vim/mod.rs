@@ -1,5 +1,50 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Sign {
+    pub id: u64,
+    pub line: u64,
+    pub file: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Diagnostic {
+    pub text_document: String,
+    pub line: u64,
+    pub col: u64,
+    pub text: String,
+    pub severity: lsp_types::DiagnosticSeverity,
+}
+
+impl Into<Sign> for Diagnostic {
+    fn into(self) -> Sign {
+        Sign {
+            // TODO: not sure what id should be, need to check vim docs
+            id: 1,
+            line: self.line,
+            file: self.text_document,
+        }
+    }
+}
+
+impl Into<QuickfixItem> for Diagnostic {
+    fn into(self) -> QuickfixItem {
+        let mut kind = 'W';
+        if self.severity == lsp_types::DiagnosticSeverity::Error {
+            kind = 'E';
+        }
+
+        QuickfixItem {
+            bufnr: 0,
+            filename: self.text_document,
+            lnum: self.line,
+            col: self.col,
+            text: self.text,
+            kind,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct TextDocumentContent {
     pub text_document: String,
