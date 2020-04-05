@@ -10,6 +10,12 @@ use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::Mutex;
 
+#[derive(Debug, Clone)]
+pub enum ServerID {
+    VIM,
+    LanguageServer,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Message {
@@ -60,13 +66,25 @@ impl Message {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Client<I, O> {
-    server_id: String,
-    reader: I,
-    writer: O,
+    server_id: ServerID,
+    reader: Arc<Mutex<I>>,
+    writer: Arc<Mutex<O>>,
     id: Arc<Mutex<AtomicU64>>,
     pending_responses: Arc<Mutex<HashMap<jsonrpc_core::Id, Sender<jsonrpc_core::Output>>>>,
+}
+
+impl<I, O> Clone for Client<I, O> {
+    fn clone(&self) -> Client<I, O> {
+        Self {
+            server_id: self.server_id.clone(),
+            reader: self.reader.clone(),
+            writer: self.writer.clone(),
+            id: self.id.clone(),
+            pending_responses: self.pending_responses.clone(),
+        }
+    }
 }
 
 impl<I, O> Client<I, O>
@@ -74,11 +92,11 @@ where
     I: AsyncBufReadExt + Unpin,
     O: AsyncWrite + Unpin,
 {
-    pub fn new(server_id: String, reader: I, writer: O) -> Self {
+    pub fn new(server_id: ServerID, reader: I, writer: O) -> Self {
         Self {
             server_id,
-            reader,
-            writer,
+            reader: Arc::new(Mutex::new(reader)),
+            writer: Arc::new(Mutex::new(writer)),
             id: Arc::new(Mutex::new(AtomicU64::default())),
             pending_responses: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -143,16 +161,20 @@ where
     }
 
     pub async fn read(&mut self) -> Fallible<Message> {
+        let mut reader = self.reader.try_lock()?;
+
         let mut content_length = String::new();
-        self.reader.read_line(&mut content_length).await?;
+        reader.read_line(&mut content_length).await?;
+        log::error!("{}", content_length);
         let content_length: String = content_length.trim().split(':').skip(1).take(1).collect();
         let content_length = content_length.trim().parse()?;
 
         let mut content_type = String::new();
-        self.reader.read_line(&mut content_type).await?;
+        reader.read_line(&mut content_type).await?;
+        log::error!("{}", content_type);
 
         let mut message = vec![0 as u8; content_length];
-        self.reader.read_exact(&mut message).await?;
+        reader.read_exact(&mut message).await?;
         let message = String::from_utf8(message)?;
         log::error!("{:?} ==> {}\n", self.server_id, message);
 
@@ -201,10 +223,10 @@ where
         let message = message.as_bytes();
         let headers = format!("Content-Length: {}\r\n\r\n", message.len());
 
-        self.writer.write_all(headers.as_bytes()).await?;
-        self.writer.write_all(message).await?;
+        let mut writer = self.writer.try_lock()?;
+        writer.write_all(headers.as_bytes()).await?;
+        writer.write_all(message).await?;
 
-        self.writer.flush().await?;
         Ok(())
     }
 

@@ -17,3 +17,5 @@ log = "0.4.8"                 # A lightweight logging facade for Rust
 serde = "1.0.106"                              # A generic serialization/deserialization framework
 serde_json = "1.0.51"          # A JSON serialization file format
 jsonrpc-core = "14.0.5"            # Transport agnostic rust implementation of JSON-RPC 2.0 Specification.
+toml = "0.5.6"              # A native Rust encoder and decoder of TOML-formatted files and streams. Provides implementations of …
+fern = "0.6.0"                         # Simple, efficient logging
