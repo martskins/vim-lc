@@ -217,6 +217,18 @@ impl LanguageClient {
         Ok(())
     }
 
+    pub async fn shutdown(&self, language_id: &str) -> Fallible<()> {
+        let mut client = self.get_client(language_id)?;
+        let message: () = client.call_and_wait(request::Shutdown::METHOD, ()).await?;
+        Ok(message)
+    }
+
+    pub async fn exit(&self, language_id: &str) -> Fallible<()> {
+        let mut client = self.get_client(language_id)?;
+        client.notify(notification::Exit::METHOD, ()).await?;
+        Ok(())
+    }
+
     pub async fn initialized(&self, language_id: &str) -> Fallible<()> {
         let mut client = self.get_client(language_id)?;
         client

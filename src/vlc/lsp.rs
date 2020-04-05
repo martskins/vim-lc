@@ -18,6 +18,19 @@ impl VLC {
         Ok(())
     }
 
+    pub async fn exit(&self, params: BaseParams) -> Fallible<()> {
+        LANGUAGE_CLIENT.clone().exit(&params.language_id).await?;
+        Ok(())
+    }
+
+    pub async fn shutdown(&self, params: BaseParams) -> Fallible<()> {
+        LANGUAGE_CLIENT
+            .clone()
+            .shutdown(&params.language_id)
+            .await?;
+        Ok(())
+    }
+
     pub async fn did_open(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT

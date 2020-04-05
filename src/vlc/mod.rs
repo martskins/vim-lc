@@ -57,6 +57,14 @@ impl VLC {
                     let params: BaseParams = serde_json::from_value(msg.params.into())?;
                     self.initialize(params).await?;
                 }
+                "shutdown" => {
+                    let params: BaseParams = serde_json::from_value(msg.params.into())?;
+                    self.shutdown(params).await?;
+                }
+                "exit" => {
+                    let params: BaseParams = serde_json::from_value(msg.params.into())?;
+                    self.shutdown(params).await?;
+                }
                 "textDocument/completion" => {
                     let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
                     self.completion(&message_id, params).await?;
