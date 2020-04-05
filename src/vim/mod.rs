@@ -1,5 +1,11 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Serialize)]
+pub struct PreviewContent {
+    pub filetype: String,
+    pub text: String,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Sign {
     pub id: u64,

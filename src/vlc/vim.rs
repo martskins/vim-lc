@@ -22,6 +22,53 @@ impl VLC {
         Ok(())
     }
 
+    pub async fn show_hover(&self, mut input: lsp_types::Hover) -> Fallible<()> {
+        let filetype = match input.contents {
+            lsp_types::HoverContents::Scalar(ref c) => match &c {
+                lsp_types::MarkedString::String(_) => String::new(),
+                lsp_types::MarkedString::LanguageString(s) => s.language.clone(),
+            },
+            lsp_types::HoverContents::Array(ref c) => {
+                if c.is_empty() {
+                    String::new()
+                } else {
+                    match c[0].clone() {
+                        lsp_types::MarkedString::String(_) => String::new(),
+                        lsp_types::MarkedString::LanguageString(s) => s.language,
+                    }
+                }
+            }
+            lsp_types::HoverContents::Markup(ref c) => match &c.kind {
+                lsp_types::MarkupKind::Markdown => "markdown".into(),
+                lsp_types::MarkupKind::PlainText => String::new(),
+            },
+        };
+
+        let text = match input.contents {
+            lsp_types::HoverContents::Scalar(ref c) => match c.clone() {
+                lsp_types::MarkedString::String(s) => s,
+                lsp_types::MarkedString::LanguageString(s) => s.value,
+            },
+            lsp_types::HoverContents::Array(ref c) => {
+                if c.is_empty() {
+                    String::new()
+                } else {
+                    match c[0].clone() {
+                        lsp_types::MarkedString::String(s) => s,
+                        lsp_types::MarkedString::LanguageString(s) => s.value,
+                    }
+                }
+            }
+            lsp_types::HoverContents::Markup(c) => c.value,
+        };
+
+        let mut client = VIM.clone().client;
+        client
+            .notify("showPreview", PreviewContent { filetype, text })
+            .await?;
+        Ok(())
+    }
+
     pub async fn show_locations(&self, input: Vec<Location>) -> Fallible<()> {
         if input.is_empty() {
             return Ok(());

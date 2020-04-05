@@ -124,6 +124,20 @@ impl LanguageClient {
         Ok(())
     }
 
+    pub async fn text_document_hover(
+        &self,
+        language_id: &str,
+        input: super::vim::TextDocumentPosition,
+    ) -> Fallible<Option<Hover>> {
+        let input: TextDocumentPositionParams = input.into();
+        let mut client = self.get_client(language_id)?;
+        let response: Option<Hover> = client
+            .call_and_wait(request::HoverRequest::METHOD, input)
+            .await?;
+
+        Ok(response)
+    }
+
     pub async fn text_document_publish_diagnostics(
         &self,
         input: PublishDiagnosticsParams,

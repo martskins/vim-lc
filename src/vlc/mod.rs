@@ -61,6 +61,10 @@ impl VLC {
                     let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
                     self.definition(params).await?;
                 }
+                "textDocument/hover" => {
+                    let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
+                    self.hover(params).await?;
+                }
                 "textDocument/references" => {
                     let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
                     self.references(params).await?;

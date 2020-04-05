@@ -82,6 +82,20 @@ impl VLC {
         Ok(())
     }
 
+    pub async fn hover(&self, params: TextDocumentPosition) -> Fallible<()> {
+        let language_id = params.language_id.clone();
+        let response = LANGUAGE_CLIENT
+            .clone()
+            .text_document_hover(&language_id, params.into())
+            .await?;
+        if response.is_none() {
+            return Ok(());
+        }
+
+        self.show_hover(response.unwrap()).await?;
+        Ok(())
+    }
+
     pub async fn references(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
