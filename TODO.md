@@ -1,0 +1,47 @@
+- [x] initialize
+- [x] initialized
+- [x] shutdown
+- [x] exit
+- [ ] $/cancelRequest
+- [x] window/showMessage
+- [ ] window/showMessageRequest
+- [x] window/logMessage
+- [ ] telemetry/event
+- [ ] client/registerCapability
+- [ ] client/unregisterCapability
+- [ ] workspace/workspaceFolders
+- [ ] workspace/didChangeWorkspaceFolders
+- [ ] workspace/didChangeConfiguration
+- [ ] workspace/configuration
+- [ ] workspace/didChangeWatchedFiles
+- [ ] workspace/symbol
+- [ ] workspace/executeCommand
+- [ ] workspace/applyEdit
+- [x] textDocument/didOpen
+- [x] textDocument/didChange
+- [ ] textDocument/willSave
+- [ ] textDocument/willSaveWaitUntil
+- [x] textDocument/didSave
+- [x] textDocument/didClose
+- [x] textDocument/publishDiagnostics
+- [x] textDocument/completion
+- [ ] completionItem/resolve
+- [x] textDocument/hover
+- [ ] textDocument/signatureHelp
+- [x] textDocument/definition
+- [ ] textDocument/typeDefinition
+- [x] textDocument/implementation
+- [x] textDocument/references
+- [ ] textDocument/documentHighlight
+- [ ] textDocument/documentSymbol
+- [ ] textDocument/codeAction
+- [ ] textDocument/codeLens
+- [ ] codeLens/resolve
+- [ ] textDocument/documentLink
+- [ ] documentLink/resolve
+- [ ] textDocument/documentColor
+- [ ] textDocument/colorPresentation
+- [ ] textDocument/formatting
+- [ ] textDocument/rangeFormatting
+- [ ] textDocument/onTypeFormatting
+- [ ] textDocument/rename
