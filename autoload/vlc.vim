@@ -17,8 +17,8 @@ function! vlc#completion(findstart, base) abort
     return col('.')
   endif
 
-  let l:items = lsp#completion(a:000)
-  return l:items
+  let l:response = lsp#completion(a:000)
+  return l:response['result']
 endfunction
 
 function! vlc#implementation() abort

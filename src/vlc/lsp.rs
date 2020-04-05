@@ -122,6 +122,49 @@ impl VLC {
         Ok(())
     }
 
+    pub async fn completion(
+        &self,
+        message_id: &jsonrpc_core::Id,
+        params: TextDocumentPosition,
+    ) -> Fallible<()> {
+        let language_id = params.language_id.clone();
+        let response = LANGUAGE_CLIENT
+            .clone()
+            .text_document_completion(&language_id, params.into())
+            .await?;
+        if response.is_none() {
+            return Ok(());
+        }
+
+        let list = match response.unwrap() {
+            lsp_types::CompletionResponse::Array(vec) => vec
+                .into_iter()
+                .map(|i| CompletionItem {
+                    word: i.label,
+                    kind: completion_item_kind(i.kind),
+                    ..Default::default()
+                })
+                .collect(),
+            lsp_types::CompletionResponse::List(list) => list
+                .items
+                .into_iter()
+                .map(|i| CompletionItem {
+                    word: i.label,
+                    kind: completion_item_kind(i.kind),
+                    ..Default::default()
+                })
+                .collect(),
+        };
+
+        let list = CompletionList { words: list };
+        let mut client = self.clone().client;
+        client
+            .reply_success(&message_id, serde_json::to_value(&list)?)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn definition(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT

@@ -362,4 +362,24 @@ impl LanguageClient {
             .notify(notification::DidOpenTextDocument::METHOD, input)
             .await
     }
+
+    pub async fn text_document_completion(
+        &self,
+        language_id: &str,
+        input: super::vim::TextDocumentPosition,
+    ) -> Fallible<Option<CompletionResponse>> {
+        let input = CompletionParams {
+            text_document_position: input.into(),
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+            context: Default::default(),
+        };
+
+        let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
+        let message = client
+            .call_and_wait(request::Completion::METHOD, input)
+            .await?;
+
+        Ok(message)
+    }
 }

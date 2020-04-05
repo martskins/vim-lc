@@ -22,7 +22,7 @@ impl VLC {
         Ok(())
     }
 
-    pub async fn show_hover(&self, mut input: lsp_types::Hover) -> Fallible<()> {
+    pub async fn show_hover(&self, input: lsp_types::Hover) -> Fallible<()> {
         let filetype = match input.contents {
             lsp_types::HoverContents::Scalar(ref c) => match &c {
                 lsp_types::MarkedString::String(_) => String::new(),
@@ -117,7 +117,7 @@ impl VLC {
     async fn set_quickfix(&self, list: Vec<QuickfixItem>) -> Fallible<()> {
         let mut client = VIM.clone().client;
         client.notify("setQuickfix", list).await?;
-        self.command(vec!["copen"]).await?;
+        // self.command(vec!["copen"]).await?;
         Ok(())
     }
 

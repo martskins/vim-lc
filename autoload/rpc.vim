@@ -36,9 +36,21 @@ function! rpc#reply(id, params) abort
   call s:doSend('success', a:params, a:id)
 endfunction
 
+function! rpc#callAndWait(method, params) abort
+  let l:id = rpc#call(a:method, a:params)
+
+  echom l:id
+  while !has_key(s:responses, l:id)
+    sleep 50m
+  endwhile
+
+  return s:responses[l:id]
+endfunction
+
 function! rpc#call(method, params) abort
   let l:id = s:getID()
   call s:doSend(a:method, a:params, l:id)
+  return l:id
 endfunction
 
 function! rpc#notify(method, params) abort

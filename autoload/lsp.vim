@@ -79,7 +79,7 @@ function! lsp#completion(...) abort
     return 0
   endif
 
-  return rpc#call('textDocument/completion', s:Position())
+  return rpc#callAndWait('textDocument/completion', s:Position())
 endfunction
 
 "{{{ PRIVATE FUNCTIONS
