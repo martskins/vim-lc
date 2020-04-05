@@ -1,5 +1,12 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Deserialize)]
+pub struct TextDocumentContent {
+    pub text_document: String,
+    pub text: String,
+    pub language_id: String,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct EvalParams {
     pub command: String,

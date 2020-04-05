@@ -65,7 +65,7 @@ impl VLC {
 
     /// handles messages sent from vim to the language client
     async fn handle_message(&self, message: rpc::Message) -> Fallible<()> {
-        log::error!("asdasd");
+        let message_id = message.id();
         match message {
             rpc::Message::MethodCall(msg) => match msg.method.as_str() {
                 "start" => {
@@ -87,12 +87,34 @@ impl VLC {
                     let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
                     self.references(params).await?;
                 }
+                "textDocument/implementation" => {
+                    let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
+                    self.implementation(params).await?;
+                }
                 _ => log::debug!("unhandled method call {}", msg.method),
             },
             rpc::Message::Notification(msg) => match msg.method.as_str() {
+                "textDocument/didSave" => {
+                    let params: TextDocumentContent = serde_json::from_value(msg.params.into())?;
+                    self.did_save(params).await?;
+                }
+                "textDocument/didOpen" => {
+                    let params: TextDocumentContent = serde_json::from_value(msg.params.into())?;
+                    self.did_open(params).await?;
+                }
+                "textDocument/didClose" => {
+                    let params: TextDocumentContent = serde_json::from_value(msg.params.into())?;
+                    self.did_close(params).await?;
+                }
+                "textDocument/didChange" => {
+                    let params: TextDocumentContent = serde_json::from_value(msg.params.into())?;
+                    self.did_change(params).await?;
+                }
                 _ => log::debug!("unhandled notification {}", msg.method),
             },
-            rpc::Message::Output(msg) => log::debug!("asdasd"),
+            rpc::Message::Output(msg) => {
+                self.clone().client.resolve(&message_id, msg).await?;
+            }
         }
 
         Ok(())

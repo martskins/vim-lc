@@ -18,6 +18,70 @@ impl VLC {
         Ok(())
     }
 
+    pub async fn did_open(&self, params: TextDocumentContent) -> Fallible<()> {
+        let language_id = params.language_id.clone();
+        LANGUAGE_CLIENT
+            .clone()
+            .text_document_did_open(&language_id, params.into())
+            .await?;
+        Ok(())
+    }
+
+    pub async fn did_save(&self, params: TextDocumentContent) -> Fallible<()> {
+        let language_id = params.language_id.clone();
+        LANGUAGE_CLIENT
+            .clone()
+            .text_document_did_save(&language_id, params.into())
+            .await?;
+        Ok(())
+    }
+
+    pub async fn did_close(&self, params: TextDocumentContent) -> Fallible<()> {
+        let language_id = params.language_id.clone();
+        LANGUAGE_CLIENT
+            .clone()
+            .text_document_did_close(&language_id, params.into())
+            .await?;
+        Ok(())
+    }
+
+    pub async fn did_change(&self, params: TextDocumentContent) -> Fallible<()> {
+        let language_id = params.language_id.clone();
+        LANGUAGE_CLIENT
+            .clone()
+            .text_document_did_change(&language_id, params.into())
+            .await?;
+        Ok(())
+    }
+
+    pub async fn implementation(&self, params: TextDocumentPosition) -> Fallible<()> {
+        let language_id = params.language_id.clone();
+        let response = LANGUAGE_CLIENT
+            .clone()
+            .text_document_implementation(&language_id, params.into())
+            .await?;
+        if response.is_none() {
+            return Ok(());
+        }
+
+        let vim = super::VIM.clone();
+        match response.unwrap() {
+            lsp_types::request::GotoDefinitionResponse::Scalar(l) => {
+                vim.jump_to_location(l.into()).await?
+            }
+            lsp_types::request::GotoDefinitionResponse::Array(ll) => {
+                let locations = ll.into_iter().map(|l| l.into()).collect();
+                vim.show_locations(locations).await?
+            }
+            lsp_types::request::GotoDefinitionResponse::Link(ll) => {
+                let locations = ll.into_iter().map(|l| l.into()).collect();
+                vim.show_locations(locations).await?
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn references(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
@@ -43,6 +107,7 @@ impl VLC {
 
         Ok(())
     }
+
     pub async fn definition(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT

@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::rpc;
+use crate::state::State;
 use crate::vim;
 use crate::vlc::VIM;
 use failure::Fallible;
@@ -23,6 +24,7 @@ type Client = rpc::Client<BufReader<ChildStdout>, ChildStdin>;
 #[derive(Debug, Clone)]
 pub struct LanguageClient {
     clients: Arc<Mutex<HashMap<String, Client>>>,
+    state: Arc<Mutex<State>>,
     config: Config,
 }
 
@@ -31,8 +33,13 @@ impl LanguageClient {
         let clients = Arc::new(Mutex::new(HashMap::new()));
         let config =
             futures::executor::block_on(Config::parse("/home/martin/Desktop/config.toml")).unwrap();
+        let state = Arc::new(Mutex::new(State::default()));
 
-        Self { clients, config }
+        Self {
+            clients,
+            state,
+            config,
+        }
     }
 
     fn spawn_reader(&self, language_id: String, mut client: Client) -> Fallible<()> {
@@ -67,7 +74,7 @@ impl LanguageClient {
             .spawn()
             .expect("could not run command");
 
-        let process_id = cmd.id() as u64;
+        // let process_id = cmd.id() as u64;
         let client = rpc::Client::new(
             rpc::ServerID::LanguageServer,
             BufReader::new(cmd.stdout.unwrap()),
@@ -173,7 +180,9 @@ impl LanguageClient {
             }),
         };
 
-        client.call(request::Initialize::METHOD, message).await?;
+        let _: InitializeResult = client
+            .call_and_wait(request::Initialize::METHOD, message)
+            .await?;
         Ok(())
     }
 
@@ -183,6 +192,19 @@ impl LanguageClient {
             .notify(notification::Initialized::METHOD, InitializedParams {})
             .await?;
         Ok(())
+    }
+
+    pub async fn text_document_implementation(
+        &self,
+        language_id: &str,
+        input: super::vim::TextDocumentPosition,
+    ) -> Fallible<Option<request::GotoImplementationResponse>> {
+        let input: TextDocumentPositionParams = input.into();
+        let mut client = self.get_client(language_id)?;
+        let message: Option<request::GotoImplementationResponse> = client
+            .call_and_wait(request::GotoImplementation::METHOD, input)
+            .await?;
+        Ok(message)
     }
 
     pub async fn text_document_references(
@@ -209,5 +231,104 @@ impl LanguageClient {
             .call_and_wait(request::GotoDefinition::METHOD, input)
             .await?;
         Ok(message)
+    }
+
+    pub async fn text_document_did_save(
+        &self,
+        language_id: &str,
+        input: super::vim::TextDocumentContent,
+    ) -> Fallible<()> {
+        let input = DidSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier {
+                uri: Url::from_file_path(input.text_document).unwrap(),
+            },
+        };
+
+        let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
+        client
+            .notify(notification::DidSaveTextDocument::METHOD, input)
+            .await
+    }
+
+    pub async fn text_document_did_close(
+        &self,
+        language_id: &str,
+        input: super::vim::TextDocumentContent,
+    ) -> Fallible<()> {
+        let state = self.state.clone();
+        let mut state = state.try_lock()?;
+        state.text_documents.remove(&input.text_document);
+
+        let input = DidCloseTextDocumentParams {
+            text_document: TextDocumentIdentifier {
+                uri: Url::from_file_path(input.text_document).unwrap(),
+            },
+        };
+
+        let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
+        client
+            .notify(notification::DidCloseTextDocument::METHOD, input)
+            .await
+    }
+
+    pub async fn text_document_did_change(
+        &self,
+        language_id: &str,
+        input: super::vim::TextDocumentContent,
+    ) -> Fallible<()> {
+        let state = self.state.clone();
+        let state = state.try_lock()?;
+        let version = state
+            .text_documents
+            .get(&input.text_document)
+            .cloned()
+            .unwrap_or_default();
+
+        // TODO: not sure if version should actually be an u64
+        let input = DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier {
+                uri: Url::from_file_path(input.text_document).unwrap(),
+                version: Some(version as i64),
+            },
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: None,
+                range_length: None,
+                text: input.text,
+            }],
+        };
+
+        let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
+        client
+            .notify(notification::DidChangeTextDocument::METHOD, input)
+            .await
+    }
+
+    pub async fn text_document_did_open(
+        &self,
+        language_id: &str,
+        input: super::vim::TextDocumentContent,
+    ) -> Fallible<()> {
+        let state = self.state.clone();
+        let mut state = state.try_lock()?;
+        let mut version = state.text_documents.get(&input.text_document).cloned();
+
+        if version.is_none() {
+            version = Some(0);
+            state.text_documents.insert(input.text_document.clone(), 0);
+        }
+
+        let input = DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: Url::from_file_path(input.text_document).unwrap(),
+                language_id: input.language_id,
+                version: version.unwrap() as i64,
+                text: input.text,
+            },
+        };
+
+        let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
+        client
+            .notify(notification::DidOpenTextDocument::METHOD, input)
+            .await
     }
 }

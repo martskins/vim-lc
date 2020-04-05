@@ -109,6 +109,6 @@ function! s:text(...) abort
     if len(l:lines) > 0 && l:lines[-1] !=# '' && &fixendofline
         let l:lines += ['']
     endif
-    return join(l:lines, '\n')
+    return join(l:lines, "\n")
 endfunction
 "}}}

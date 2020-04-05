@@ -1,6 +1,7 @@
 mod config;
 mod language_client;
 mod rpc;
+mod state;
 mod vim;
 mod vlc;
 
