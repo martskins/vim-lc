@@ -1,0 +1,19 @@
+[package]
+name = "vlc"
+version = "0.1.0"
+authors = ["Martin Asquino <martin.asquino@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+lsp-types = "0.73.0"               # Types for interaction with a language server, using VSCode's Language Server Protocol
+crossbeam = "0.7.3"                       # Tools for concurrent programming
+lazy_static = "1.4.0"            # A macro for declaring lazily evaluated statics in Rust.
+tokio = { version = "0.2.16", features = [ "full" ] }
+futures = "0.3.4"                 # An implementation of futures and streams featuring zero allocations, composability, and itera…
+failure = "0.1.7"                    # Experimental error handling abstraction.
+log = "0.4.8"                 # A lightweight logging facade for Rust
+serde = "1.0.106"                              # A generic serialization/deserialization framework
+serde_json = "1.0.51"          # A JSON serialization file format
+jsonrpc-core = "14.0.5"            # Transport agnostic rust implementation of JSON-RPC 2.0 Specification.
