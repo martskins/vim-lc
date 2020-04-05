@@ -35,13 +35,17 @@ impl LanguageClient {
         Self { clients, config }
     }
 
-    fn spawn_reader(&self, mut reader: Client) -> Fallible<()> {
-        let lc = self.clone();
+    fn spawn_reader(&self, language_id: String, mut client: Client) -> Fallible<()> {
+        self.clients
+            .try_lock()?
+            .insert(language_id.clone().into(), client.clone());
 
+        let lc = self.clone();
         tokio::spawn(async move {
+            let language_id = language_id.clone();
             loop {
-                let message = reader.read().await.unwrap();
-                if let Err(err) = lc.handle_message(message).await {
+                let message = client.read().await.unwrap();
+                if let Err(err) = lc.handle_message(language_id.as_str(), message).await {
                     log::error!("{}", err);
                 }
             }
@@ -70,8 +74,7 @@ impl LanguageClient {
             cmd.stdin.unwrap(),
         );
 
-        self.spawn_reader(client.clone())?;
-        self.clients.try_lock()?.insert(language_id.into(), client);
+        self.spawn_reader(language_id.into(), client.clone())?;
 
         log::error!("DONE");
         Ok(())
@@ -87,7 +90,8 @@ impl LanguageClient {
     }
 
     /// handles messages sent from vim to the language client
-    async fn handle_message(&self, message: rpc::Message) -> Fallible<()> {
+    async fn handle_message(&self, language_id: &str, message: rpc::Message) -> Fallible<()> {
+        let message_id = message.id();
         match message {
             rpc::Message::MethodCall(msg) => match msg.method.as_str() {
                 _ => log::debug!("unhandled method call {}", msg.method),
@@ -110,7 +114,10 @@ impl LanguageClient {
                 }
                 _ => log::debug!("unhandled notification {}", msg.method),
             },
-            rpc::Message::Output(msg) => log::debug!("asdasd"),
+            rpc::Message::Output(o) => {
+                let mut client = self.get_client(language_id)?;
+                client.resolve(&message_id, o.clone()).await?;
+            }
         }
 
         Ok(())
@@ -182,11 +189,12 @@ impl LanguageClient {
         &self,
         language_id: &str,
         params: TextDocumentPositionParams,
-    ) -> Fallible<()> {
-        log::error!("{}", language_id);
+    ) -> Fallible<Option<request::GotoDefinitionResponse>> {
+        let input: TextDocumentPositionParams = params.into();
         let mut client = self.get_client(language_id)?;
-        client.call(request::GotoDefinition::METHOD, params).await?;
-        Ok(())
-        // server.call("textDocument/definition");
+        let message: Option<request::GotoDefinitionResponse> = client
+            .call_and_wait(request::GotoDefinition::METHOD, input)
+            .await?;
+        Ok(message)
     }
 }

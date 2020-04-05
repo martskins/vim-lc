@@ -1,18 +1,57 @@
 use super::VIM;
 use super::VLC;
-use crate::config::Config;
-use crate::language_client::LANGUAGE_CLIENT;
-use crate::rpc;
-use crate::rpc::Client;
 use crate::vim::*;
 use failure::Fallible;
-use futures::executor::block_on;
-use lazy_static::lazy_static;
-use std::str::FromStr;
 
 impl VLC {
-    fn jump_to_location() {
-        unimplemented!();
+    pub async fn show_locations(&self, input: Vec<Location>) -> Fallible<()> {
+        if input.is_empty() {
+            return Ok(());
+        }
+
+        if input.len() == 1 {
+            return self.jump_to_location(input.first().cloned().unwrap()).await;
+        }
+
+        let list = input
+            .into_iter()
+            .map(|l| QuickfixItem {
+                bufnr: 0,
+                filename: l.filename,
+                lnum: l.line,
+                col: l.col,
+                text: String::new(),
+                kind: 'W',
+            })
+            .collect();
+
+        self.set_quickfix(list).await?;
+        Ok(())
+    }
+
+    pub async fn jump_to_location(&self, input: Location) -> Fallible<()> {
+        let command = format!("cursor({}, {})", input.line, input.col);
+        self.call(EvalParams { command }).await?;
+        Ok(())
+    }
+
+    pub async fn call(&self, cmd: EvalParams) -> Fallible<()> {
+        let mut client = VIM.clone().client;
+        client.call("call", cmd).await?;
+        Ok(())
+    }
+
+    async fn set_quickfix(&self, list: Vec<QuickfixItem>) -> Fallible<()> {
+        let mut client = VIM.clone().client;
+        client.notify("setQuickfix", list).await?;
+        self.command(vec!["copen"]).await?;
+        Ok(())
+    }
+
+    async fn command(&self, cmd: Vec<&str>) -> Fallible<()> {
+        let mut client = VIM.clone().client;
+        client.notify("command", cmd).await?;
+        Ok(())
     }
 
     pub async fn show_message(&self, message: Message) -> Fallible<()> {

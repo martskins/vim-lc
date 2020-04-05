@@ -1,5 +1,47 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct EvalParams {
+    pub command: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct QuickfixItem {
+    pub bufnr: u64,
+    pub filename: String,
+    pub lnum: u64,
+    pub col: u64,
+    pub text: String,
+    pub kind: char,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Location {
+    pub filename: String,
+    pub line: u64,
+    pub col: u64,
+}
+
+impl From<lsp_types::LocationLink> for Location {
+    fn from(f: lsp_types::LocationLink) -> Self {
+        Location {
+            filename: f.target_uri.to_string(),
+            line: f.target_range.start.line + 1,
+            col: f.target_range.start.character + 1,
+        }
+    }
+}
+
+impl From<lsp_types::Location> for Location {
+    fn from(f: lsp_types::Location) -> Self {
+        Location {
+            filename: f.uri.to_string(),
+            line: f.range.start.line + 1,
+            col: f.range.start.character + 1,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Message {
     pub level: u64,

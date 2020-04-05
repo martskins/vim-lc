@@ -165,13 +165,11 @@ where
 
         let mut content_length = String::new();
         reader.read_line(&mut content_length).await?;
-        log::error!("{}", content_length);
         let content_length: String = content_length.trim().split(':').skip(1).take(1).collect();
         let content_length = content_length.trim().parse()?;
 
         let mut content_type = String::new();
         reader.read_line(&mut content_type).await?;
-        log::error!("{}", content_type);
 
         let mut message = vec![0 as u8; content_length];
         reader.read_exact(&mut message).await?;
@@ -226,6 +224,7 @@ where
         let mut writer = self.writer.try_lock()?;
         writer.write_all(headers.as_bytes()).await?;
         writer.write_all(message).await?;
+        writer.flush().await?;
 
         Ok(())
     }
