@@ -72,7 +72,6 @@ impl LanguageClient {
 
         self.spawn_reader(language_id.into(), client.clone())?;
 
-        log::error!("DONE");
         Ok(())
     }
 
