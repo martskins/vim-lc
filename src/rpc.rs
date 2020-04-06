@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::Mutex;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ServerID {
     VIM,
     LanguageServer,
@@ -134,7 +134,7 @@ where
     // }
 
     pub async fn reply_success(
-        &mut self,
+        &self,
         message_id: &jsonrpc_core::Id,
         message: serde_json::Value,
     ) -> Fallible<()> {
@@ -153,6 +153,7 @@ where
         message_id: &jsonrpc_core::Id,
         message: jsonrpc_core::Output,
     ) -> Fallible<()> {
+        log::error!("{:?} {:?}", message_id, message);
         let mut pending_responses = self.pending_responses.try_lock()?;
         if let Some(tx) = pending_responses.remove(message_id) {
             tx.send(message)?;
@@ -160,7 +161,7 @@ where
         Ok(())
     }
 
-    pub async fn read(&mut self) -> Fallible<Message> {
+    pub async fn read(&self) -> Fallible<Message> {
         let mut reader = self.reader.try_lock()?;
 
         let mut content_length = String::new();
@@ -180,7 +181,7 @@ where
         Ok(message)
     }
 
-    pub async fn notify<M>(&mut self, method: &str, message: M) -> Fallible<()>
+    pub async fn notify<M>(&self, method: &str, message: M) -> Fallible<()>
     where
         M: Serialize,
     {
@@ -194,10 +195,10 @@ where
         Ok(())
     }
 
-    async fn send_raw<M: Serialize>(&mut self, message: M) -> Fallible<()> {
+    async fn send_raw<M: Serialize>(&self, message: M) -> Fallible<()> {
         let message = serde_json::to_string(&message)?;
         log::error!("{:?} <== {}\n", self.server_id, message);
-        // let message = message + "\r\n";
+        let message = message + "\r\n";
 
         let message = message.as_bytes();
         let headers = format!("Content-Length: {}\r\n\r\n", message.len());
@@ -210,7 +211,7 @@ where
         Ok(())
     }
 
-    pub async fn call<M, R>(&mut self, method: &str, message: M) -> Fallible<R>
+    pub async fn call<M, R>(&self, method: &str, message: M) -> Fallible<R>
     where
         M: Serialize + std::fmt::Debug + Clone,
         R: DeserializeOwned,

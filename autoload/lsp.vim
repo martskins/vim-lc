@@ -42,6 +42,18 @@ function! lsp#shutdown() abort
   call rpc#call('shutdown', v:null)
 endfunction
 
+function! lsp#rename(new_name) abort
+  if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
+    return 0
+  endif
+
+  return rpc#call('textDocument/rename', {
+        \ 'text_document_position': extend(s:Position(), {'language_id': &filetype}),
+        \ 'new_name': a:new_name
+        \ })
+endfunction
+
+
 function! lsp#hover() abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0

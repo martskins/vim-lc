@@ -2,6 +2,7 @@ call call('vim#start', [])
 
 nnoremap <silent>gd   :call vlc#goToDefinition()<CR>
 nnoremap <silent>K    :call vlc#hover()<CR>
+nnoremap <silent>R    :call vlc#rename()<CR>
 nnoremap <silent>gr   :call vlc#references()<CR>
 nnoremap <silent>gi   :call vlc#implementation()<CR>
 nnoremap <c-s>        :call vlc#start()<CR>

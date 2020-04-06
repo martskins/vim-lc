@@ -21,6 +21,11 @@ function! vlc#completion(findstart, base) abort
   return l:response['result']
 endfunction
 
+function! vlc#rename() abort
+  let l:new_name = input('Enter new name: ')
+  call lsp#rename(l:new_name)
+endfunction
+
 function! vlc#implementation() abort
   call lsp#implementation()
 endfunction

@@ -1,6 +1,35 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize)]
+pub struct TextDocumentChanges {
+    pub text_document: String,
+    pub edits: Vec<TextDocumentEdit>,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct WorkspaceEdit {
+    pub changes: Vec<TextDocumentChanges>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TextDocumentEdit {
+    pub lines: Vec<Line>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Line {
+    pub lnum: u64,
+    pub text: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RenameParams {
+    pub language_id: String,
+    pub text_document_position: TextDocumentPosition,
+    pub new_name: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct VirtualText {
     pub text: String,
     pub line: u64,

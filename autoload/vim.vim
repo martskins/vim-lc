@@ -27,10 +27,19 @@ function! vim#cmd(commands) abort
 endfunction
 
 function! vim#eval(params) abort
-  echom a:params['command']
   let l:res = eval(a:params['command'])
-  echom l:res
   return l:res
+endfunction
+
+function! vim#applyChanges(changes) abort
+  execute 'edit' a:changes['text_document']
+  for change in a:changes['edits']
+    for line in change['lines']
+      let l:lnum = line['lnum']
+      " let l:current_line = getline(l:lnum)
+      call setline(l:lnum, line['text'])
+    endfor
+  endfor
 endfunction
 
 function! vim#setVirtualTexts(params) abort
@@ -61,7 +70,6 @@ function! vim#setQuickfix(params) abort
       let l:line['text'] = getbufline(l:line['filename'], l:line['lnum'])[0]
     endif
     let l:params = add(l:params, l:line)
-    echom l:line['text']
   endfor
 
   call setqflist(l:params)

@@ -345,6 +345,22 @@ impl LanguageClient {
             .await
     }
 
+    pub async fn text_document_rename(
+        &self,
+        language_id: &str,
+        input: super::vim::RenameParams,
+    ) -> Fallible<Option<WorkspaceEdit>> {
+        let params = RenameParams {
+            text_document_position: input.text_document_position.into(),
+            new_name: input.new_name,
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+
+        let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
+        let response: Option<WorkspaceEdit> = client.call(request::Rename::METHOD, params).await?;
+        Ok(response)
+    }
+
     pub async fn text_document_did_open(
         &self,
         language_id: &str,
@@ -472,5 +488,36 @@ impl LanguageClient {
         let message = client.call(request::Completion::METHOD, input).await?;
 
         Ok(message)
+    }
+
+    fn workspace_edit_from(&self, f: WorkspaceEdit) -> Fallible<super::vim::WorkspaceEdit> {
+        let document_changes = f
+            .document_changes
+            .unwrap_or(lsp_types::DocumentChanges::Edits(vec![]));
+
+        let pwd = std::env::current_dir()?;
+        let pwd = format!("file://{}/", pwd.to_str().unwrap());
+        let changes = match document_changes {
+            lsp_types::DocumentChanges::Edits(edits) => edits
+                .into_iter()
+                .map(|v| super::vim::TextDocumentChanges {
+                    text_document: v.text_document.uri.to_string().replace(pwd.as_str(), ""),
+                    edits: v
+                        .edits
+                        .into_iter()
+                        .map(|e| {
+                            let lines = vec![super::vim::Line {
+                                lnum: e.range.start.line,
+                                text: e.new_text.clone(),
+                            }];
+                            super::vim::TextDocumentEdit { lines }
+                        })
+                        .collect(),
+                })
+                .collect(),
+            lsp_types::DocumentChanges::Operations(operations) => vec![],
+        };
+
+        Ok(super::vim::WorkspaceEdit { changes })
     }
 }

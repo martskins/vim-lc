@@ -1,7 +1,6 @@
 mod vim;
 
 use crate::rpc;
-use crate::rpc::Client;
 use crate::vim::*;
 use crate::LANGUAGE_CLIENT;
 use failure::Fallible;
@@ -9,12 +8,12 @@ use tokio::io::{BufReader, Stdin, Stdout};
 
 #[derive(Debug, Clone)]
 pub struct VLC {
-    client: Client<BufReader<Stdin>, Stdout>,
+    client: rpc::Client<BufReader<Stdin>, Stdout>,
 }
 
 impl VLC {
     pub fn new() -> VLC {
-        let client = Client::new(
+        let client = rpc::Client::new(
             rpc::ServerID::VIM,
             BufReader::new(tokio::io::stdin()),
             tokio::io::stdout(),
@@ -30,85 +29,83 @@ impl VLC {
     }
 
     async fn loop_read(&self) -> Fallible<()> {
-        let mut vlc = self.clone();
+        let client = self.client.clone();
+        let vlc = self.clone();
         loop {
-            let message = vlc.client.read().await?;
+            let message = client.read().await?;
             if let Err(err) = vlc.handle_message(message).await {
                 log::error!("{}", err);
             }
         }
     }
 
-    pub async fn initialize(&self, params: BaseParams) -> Fallible<()> {
-        LANGUAGE_CLIENT
-            .clone()
-            .initialize(&params.language_id)
-            .await?;
-
-        LANGUAGE_CLIENT
-            .clone()
-            .initialized(&params.language_id)
-            .await?;
-
+    async fn initialize(&self, params: BaseParams) -> Fallible<()> {
+        LANGUAGE_CLIENT.initialize(&params.language_id).await?;
+        LANGUAGE_CLIENT.initialized(&params.language_id).await?;
         Ok(())
     }
 
-    pub async fn exit(&self, params: BaseParams) -> Fallible<()> {
-        LANGUAGE_CLIENT.clone().exit(&params.language_id).await?;
+    async fn exit(&self, params: BaseParams) -> Fallible<()> {
+        LANGUAGE_CLIENT.exit(&params.language_id).await?;
         Ok(())
     }
 
-    pub async fn shutdown(&self, params: BaseParams) -> Fallible<()> {
-        LANGUAGE_CLIENT
-            .clone()
-            .shutdown(&params.language_id)
+    async fn shutdown(&self, params: BaseParams) -> Fallible<()> {
+        LANGUAGE_CLIENT.shutdown(&params.language_id).await?;
+        Ok(())
+    }
+
+    async fn rename(&self, params: RenameParams) -> Fallible<()> {
+        let language_id = params.language_id.clone();
+        let response = LANGUAGE_CLIENT
+            .text_document_rename(&language_id, params)
             .await?;
+        if response.is_none() {
+            return Ok(());
+        }
+
+        self.apply_edits(response.unwrap()).await?;
         Ok(())
     }
 
-    pub async fn did_open(&self, params: TextDocumentContent) -> Fallible<()> {
+    async fn did_open(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT
-            .clone()
             .text_document_did_open(&language_id, params.clone().into())
             .await?;
         self.code_lens(params.into()).await?;
         Ok(())
     }
 
-    pub async fn did_save(&self, params: TextDocumentContent) -> Fallible<()> {
+    async fn did_save(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT
-            .clone()
             .text_document_did_save(&language_id, params.clone().into())
             .await?;
         self.code_lens(params.into()).await?;
         Ok(())
     }
 
-    pub async fn did_close(&self, params: TextDocumentContent) -> Fallible<()> {
+    async fn did_close(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT
-            .clone()
             .text_document_did_close(&language_id, params.into())
             .await?;
         Ok(())
     }
 
-    pub async fn did_change(&self, params: TextDocumentContent) -> Fallible<()> {
+    async fn did_change(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT
-            .clone()
             .text_document_did_change(&language_id, params.clone().into())
             .await?;
         self.code_lens(params.into()).await?;
         Ok(())
     }
 
-    pub async fn implementation(&self, params: TextDocumentPosition) -> Fallible<()> {
+    async fn implementation(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
-            .clone()
             .text_document_implementation(&language_id, params.into())
             .await?;
         if response.is_none() {
@@ -133,10 +130,9 @@ impl VLC {
         Ok(())
     }
 
-    pub async fn hover(&self, params: TextDocumentPosition) -> Fallible<()> {
+    async fn hover(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
-            .clone()
             .text_document_hover(&language_id, params.into())
             .await?;
         if response.is_none() {
@@ -147,10 +143,9 @@ impl VLC {
         Ok(())
     }
 
-    pub async fn references(&self, params: TextDocumentPosition) -> Fallible<()> {
+    async fn references(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
-            .clone()
             .text_document_references(&language_id, params.into())
             .await?;
         if response.is_none() {
@@ -173,7 +168,7 @@ impl VLC {
         Ok(())
     }
 
-    pub async fn code_lens(&self, params: TextDocumentIdentifier) -> Fallible<()> {
+    async fn code_lens(&self, params: TextDocumentIdentifier) -> Fallible<()> {
         let language_id = params.language_id.clone();
         let response: Vec<lsp_types::CodeLens> = LANGUAGE_CLIENT
             .text_document_code_lens(&language_id, params)
@@ -202,12 +197,12 @@ impl VLC {
             .filter(|i| !i.is_none())
             .collect();
 
-        let mut client = self.clone().client;
+        let client = self.client.clone();
         client.notify("setVirtualTexts", virtual_texts).await?;
         Ok(())
     }
 
-    pub async fn completion(
+    async fn completion(
         &self,
         message_id: &jsonrpc_core::Id,
         params: TextDocumentPosition,
@@ -241,7 +236,7 @@ impl VLC {
         };
 
         let list = CompletionList { words: list };
-        let mut client = self.clone().client;
+        let client = self.client.clone();
         client
             .reply_success(&message_id, serde_json::to_value(&list)?)
             .await?;
@@ -249,10 +244,9 @@ impl VLC {
         Ok(())
     }
 
-    pub async fn definition(&self, params: TextDocumentPosition) -> Fallible<()> {
+    async fn definition(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
-            .clone()
             .text_document_definition(&language_id, params.into())
             .await?;
         if response.is_none() {
@@ -320,6 +314,10 @@ impl VLC {
                 "textDocument/references" => {
                     let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
                     self.references(params).await?;
+                }
+                "textDocument/rename" => {
+                    let params: RenameParams = serde_json::from_value(msg.params.into())?;
+                    self.rename(params).await?;
                 }
                 "textDocument/implementation" => {
                     let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;

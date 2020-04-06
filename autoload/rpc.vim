@@ -39,7 +39,6 @@ endfunction
 function! rpc#callAndWait(method, params) abort
   let l:id = rpc#call(a:method, a:params)
 
-  echom l:id
   while !has_key(s:responses, l:id)
     sleep 50m
   endwhile
@@ -146,6 +145,11 @@ function! rpc#read(job, lines, event) abort
     " shows a message in the bottom bar
     if l:method ==# 'showMessage'
       return vim#showMessage(l:params)
+    " applies a list of edits
+    elseif l:method ==# 'applyEdits'
+      for changes in l:params['changes']
+        return vim#applyChanges(changes)
+      endfor
     " shows the preview window and sets it's content
     elseif l:method ==# 'showPreview'
       return vim#showPreview(l:params)
@@ -164,10 +168,8 @@ function! rpc#read(job, lines, event) abort
     " evaluates a command, waits for the response and replies to the server
     elseif l:method ==# 'eval'
       let l:res = vim#eval(l:params)
-      echom l:res
-      echom has_key(l:message, 'id')
       if has_key(l:message, 'id')
-        call rpc#reply(l:message['id'], json_encode(l:res))
+        call rpc#reply(l:message['id'], l:res)
       endif
     elseif l:method ==# 'command'
       return vim#cmd(l:params)

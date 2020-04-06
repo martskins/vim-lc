@@ -4,6 +4,58 @@ use crate::VIM;
 use failure::Fallible;
 
 impl VLC {
+    pub async fn apply_edits(&self, edits: lsp_types::WorkspaceEdit) -> Fallible<()> {
+        let client = self.client.clone();
+
+        let line = self.get_line("cmd/api/main.go", 17).await?;
+        log::error!("{}", line);
+        let edits = self.workspace_edit_from(edits)?;
+        // client.notify("applyEdits", edits).await?;
+
+        Ok(())
+    }
+
+    async fn get_line(&self, filename: &str, line_number: u64) -> Fallible<String> {
+        // let mut client = self.clone().client;
+        let line = self
+            .eval(EvalParams {
+                command: "getline('.')".into(),
+            })
+            .await?;
+        Ok("".into())
+    }
+
+    fn workspace_edit_from(&self, f: lsp_types::WorkspaceEdit) -> Fallible<WorkspaceEdit> {
+        let document_changes = f
+            .document_changes
+            .unwrap_or(lsp_types::DocumentChanges::Edits(vec![]));
+
+        let pwd = std::env::current_dir()?;
+        let pwd = format!("file://{}/", pwd.to_str().unwrap());
+        let changes = match document_changes {
+            lsp_types::DocumentChanges::Edits(edits) => edits
+                .into_iter()
+                .map(|v| TextDocumentChanges {
+                    text_document: v.text_document.uri.to_string().replace(pwd.as_str(), ""),
+                    edits: v
+                        .edits
+                        .into_iter()
+                        .map(|e| {
+                            let lines = vec![Line {
+                                lnum: e.range.start.line,
+                                text: e.new_text.clone(),
+                            }];
+                            TextDocumentEdit { lines }
+                        })
+                        .collect(),
+                })
+                .collect(),
+            lsp_types::DocumentChanges::Operations(operations) => vec![],
+        };
+
+        Ok(WorkspaceEdit { changes })
+    }
+
     pub async fn show_diagnostics(&self, mut diagnostics: Vec<Diagnostic>) -> Fallible<()> {
         let pwd = std::env::current_dir()?;
         let pwd = format!("file://{}/", pwd.to_str().unwrap());
@@ -62,7 +114,7 @@ impl VLC {
             lsp_types::HoverContents::Markup(c) => c.value,
         };
 
-        let mut client = VIM.clone().client;
+        let client = VIM.client.clone();
         client
             .notify("showPreview", PreviewContent { filetype, text })
             .await?;
@@ -102,33 +154,39 @@ impl VLC {
         Ok(())
     }
 
+    pub async fn eval<R: serde::de::DeserializeOwned>(&self, cmd: EvalParams) -> Fallible<R> {
+        let client = VIM.client.clone();
+        let res: R = client.call("eval", cmd).await?;
+        Ok(res)
+    }
+
     pub async fn call(&self, cmd: EvalParams) -> Fallible<()> {
-        let mut client = VIM.clone().client;
+        let client = VIM.client.clone();
         client.notify("call", cmd).await?;
         Ok(())
     }
 
     async fn set_signs(&self, list: Vec<Sign>) -> Fallible<()> {
-        let mut client = VIM.clone().client;
+        let client = VIM.client.clone();
         client.notify("setSigns", list).await?;
         Ok(())
     }
 
     async fn set_quickfix(&self, list: Vec<QuickfixItem>) -> Fallible<()> {
-        let mut client = VIM.clone().client;
+        let client = VIM.client.clone();
         client.notify("setQuickfix", list).await?;
         // self.command(vec!["copen"]).await?;
         Ok(())
     }
 
     async fn command(&self, cmd: Vec<&str>) -> Fallible<()> {
-        let mut client = VIM.clone().client;
+        let client = VIM.client.clone();
         client.notify("command", cmd).await?;
         Ok(())
     }
 
     pub async fn show_message(&self, message: Message) -> Fallible<()> {
-        let mut client = VIM.clone().client;
+        let client = VIM.client.clone();
         client.notify("showMessage", message).await?;
         Ok(())
     }

@@ -44,4 +44,4 @@
 - [ ] textDocument/formatting
 - [ ] textDocument/rangeFormatting
 - [ ] textDocument/onTypeFormatting
-- [ ] textDocument/rename
+- [x] textDocument/rename
