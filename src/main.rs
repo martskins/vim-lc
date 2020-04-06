@@ -11,13 +11,19 @@ use futures::executor::block_on;
 use language_client::LanguageClient;
 use lazy_static::lazy_static;
 use std::str::FromStr;
-use tokio::io::{Stdin, Stdout};
+use tokio::io::{stdin, stdout, BufReader, Stdin, Stdout};
 use tokio::process::{ChildStdin, ChildStdout};
 
+type Client<I, O> = rpc::Client<BufReader<I>, O>;
+
 lazy_static! {
-    pub static ref VIM: vlc::VLC<Stdin, Stdout> =
-        vlc::VLC::new(tokio::io::stdin(), tokio::io::stdout());
-    pub static ref LANGUAGE_CLIENT: LanguageClient<ChildStdout, ChildStdin> = LanguageClient::new();
+    pub static ref VIM: vlc::VLC<Client<Stdin, Stdout>> = vlc::VLC::new(rpc::Client::new(
+        rpc::ServerID::VIM,
+        BufReader::new(stdin()),
+        stdout()
+    ));
+    pub static ref LANGUAGE_CLIENT: LanguageClient<Client<ChildStdout, ChildStdin>> =
+        LanguageClient::new();
     pub static ref CONFIG: Config =
         block_on(Config::parse("/home/martin/Desktop/config.toml")).unwrap();
 }

@@ -1,20 +1,20 @@
 mod vim;
 
 use crate::rpc;
+use crate::rpc::RPCClient;
 use crate::vim::*;
 use crate::LANGUAGE_CLIENT;
 use failure::Fallible;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
 #[derive(Debug)]
-pub struct VLC<I, O> {
-    client: rpc::Client<BufReader<I>, O>,
+pub struct VLC<T> {
+    client: T,
 }
 
-impl<I, O> Clone for VLC<I, O>
+impl<T> Clone for VLC<T>
 where
-    I: AsyncRead + Unpin + Send + 'static,
-    O: AsyncWrite + Unpin + Send + 'static,
+    T: Clone,
 {
     fn clone(&self) -> Self {
         VLC {
@@ -23,13 +23,12 @@ where
     }
 }
 
-impl<I, O> VLC<I, O>
+impl<T> VLC<T>
 where
-    I: AsyncRead + Unpin + Send + 'static,
-    O: AsyncWrite + Unpin + Send + 'static,
+    T: RPCClient + Clone + Unpin + Sync + Send + 'static,
 {
-    pub fn new(reader: I, writer: O) -> VLC<I, O> {
-        let client = rpc::Client::new(rpc::ServerID::VIM, BufReader::new(reader), writer);
+    pub fn new(client: T) -> VLC<T> {
+        // let client = rpc::Client::new(rpc::ServerID::VIM, BufReader::new(reader), writer);
         Self { client }
     }
 

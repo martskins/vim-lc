@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use crossbeam::Sender;
 use failure::Fallible;
 use jsonrpc_core::Params;
@@ -9,6 +10,24 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::Mutex;
+
+#[async_trait]
+pub trait RPCClient {
+    async fn read(&self) -> Fallible<Message>;
+    async fn resolve(&self, id: &jsonrpc_core::Id, message: jsonrpc_core::Output) -> Fallible<()>;
+    async fn reply_success(
+        &self,
+        id: &jsonrpc_core::Id,
+        message: serde_json::Value,
+    ) -> Fallible<()>;
+    async fn call<M, R>(&self, method: &str, message: M) -> Fallible<R>
+    where
+        M: Serialize + std::fmt::Debug + Clone + Send,
+        R: DeserializeOwned;
+    async fn notify<M>(&self, method: &str, message: M) -> Fallible<()>
+    where
+        M: Serialize + Send;
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ServerID {
@@ -79,7 +98,30 @@ where
         Ok(())
     }
 
-    pub async fn reply_success(
+    async fn send_raw<M: Serialize>(&self, message: M) -> Fallible<()> {
+        let message = serde_json::to_string(&message)?;
+        log::error!("{:?} <== {}\n", self.server_id, message);
+        let message = message + "\r\n";
+
+        let message = message.as_bytes();
+        let headers = format!("Content-Length: {}\r\n\r\n", message.len());
+
+        let mut writer = self.writer.try_lock()?;
+        writer.write_all(headers.as_bytes()).await?;
+        writer.write_all(message).await?;
+        writer.flush().await?;
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl<I, O> RPCClient for Client<I, O>
+where
+    I: AsyncBufReadExt + Unpin + Send,
+    O: AsyncWrite + Unpin + Send,
+{
+    async fn reply_success(
         &self,
         message_id: &jsonrpc_core::Id,
         message: serde_json::Value,
@@ -94,7 +136,7 @@ where
         Ok(())
     }
 
-    pub async fn resolve(
+    async fn resolve(
         &self,
         message_id: &jsonrpc_core::Id,
         message: jsonrpc_core::Output,
@@ -106,7 +148,7 @@ where
         Ok(())
     }
 
-    pub async fn read(&self) -> Fallible<Message> {
+    async fn read(&self) -> Fallible<Message> {
         let mut reader = self.reader.try_lock()?;
 
         let mut content_length = String::new();
@@ -126,9 +168,9 @@ where
         Ok(message)
     }
 
-    pub async fn notify<M>(&self, method: &str, message: M) -> Fallible<()>
+    async fn notify<M>(&self, method: &str, message: M) -> Fallible<()>
     where
-        M: Serialize,
+        M: Serialize + Send,
     {
         let message = jsonrpc_core::Notification {
             jsonrpc: Some(jsonrpc_core::Version::V2),
@@ -140,25 +182,9 @@ where
         Ok(())
     }
 
-    async fn send_raw<M: Serialize>(&self, message: M) -> Fallible<()> {
-        let message = serde_json::to_string(&message)?;
-        log::error!("{:?} <== {}\n", self.server_id, message);
-        let message = message + "\r\n";
-
-        let message = message.as_bytes();
-        let headers = format!("Content-Length: {}\r\n\r\n", message.len());
-
-        let mut writer = self.writer.try_lock()?;
-        writer.write_all(headers.as_bytes()).await?;
-        writer.write_all(message).await?;
-        writer.flush().await?;
-
-        Ok(())
-    }
-
-    pub async fn call<M, R>(&self, method: &str, message: M) -> Fallible<R>
+    async fn call<M, R>(&self, method: &str, message: M) -> Fallible<R>
     where
-        M: Serialize + std::fmt::Debug + Clone,
+        M: Serialize + std::fmt::Debug + Clone + Send,
         R: DeserializeOwned,
     {
         let (tx, rx) = crossbeam::bounded(1);

@@ -1,13 +1,12 @@
 use super::VLC;
+use crate::rpc::RPCClient;
 use crate::vim::*;
 use crate::VIM;
 use failure::Fallible;
-use tokio::io::{AsyncRead, AsyncWrite};
 
-impl<I, O> VLC<I, O>
+impl<T> VLC<T>
 where
-    I: AsyncRead + Unpin + Send + 'static,
-    O: AsyncWrite + Unpin + Send + 'static,
+    T: RPCClient + Clone + Sync + Unpin + Send + 'static,
 {
     pub async fn apply_edits(&self, edits: lsp_types::WorkspaceEdit) -> Fallible<()> {
         let client = self.client.clone();

@@ -1,4 +1,5 @@
 use crate::rpc;
+use crate::rpc::RPCClient;
 use crate::state::State;
 use crate::vim;
 use crate::CONFIG;
@@ -15,16 +16,17 @@ use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::Mutex;
 
-type Client<I, O> = rpc::Client<BufReader<I>, O>;
-
 #[derive(Debug)]
-pub struct LanguageClient<I, O> {
-    clients: Arc<Mutex<HashMap<String, Client<I, O>>>>,
+pub struct LanguageClient<T> {
+    clients: Arc<Mutex<HashMap<String, T>>>,
     state: Arc<Mutex<State>>,
 }
 
-impl<I, O> Clone for LanguageClient<I, O> {
-    fn clone(&self) -> LanguageClient<I, O> {
+impl<T> Clone for LanguageClient<T>
+where
+    T: Clone,
+{
+    fn clone(&self) -> LanguageClient<T> {
         Self {
             clients: self.clients.clone(),
             state: self.state.clone(),
@@ -32,7 +34,7 @@ impl<I, O> Clone for LanguageClient<I, O> {
     }
 }
 
-impl LanguageClient<ChildStdout, ChildStdin> {
+impl LanguageClient<rpc::Client<BufReader<ChildStdout>, ChildStdin>> {
     /// runs the binary specified in the config file for the given language_id
     pub async fn start_server(&mut self, language_id: &str) -> Fallible<()> {
         let binpath = CONFIG.servers.get(language_id);
@@ -61,10 +63,9 @@ impl LanguageClient<ChildStdout, ChildStdin> {
 }
 
 #[allow(deprecated)]
-impl<I, O> LanguageClient<I, O>
+impl<T> LanguageClient<T>
 where
-    I: AsyncRead + Unpin + Send + 'static,
-    O: AsyncWrite + Unpin + Send + 'static,
+    T: RPCClient + Clone + Send + Sync + 'static,
 {
     pub fn new() -> Self {
         let clients = Arc::new(Mutex::new(HashMap::new()));
@@ -72,7 +73,7 @@ where
         Self { clients, state }
     }
 
-    fn spawn_reader(&self, language_id: String, client: Client<I, O>) -> Fallible<()> {
+    fn spawn_reader(&self, language_id: String, client: T) -> Fallible<()> {
         self.clients
             .try_lock()?
             .insert(language_id.clone(), client.clone());
@@ -91,7 +92,7 @@ where
         Ok(())
     }
 
-    fn get_client(&self, language_id: &str) -> Fallible<Client<I, O>> {
+    fn get_client(&self, language_id: &str) -> Fallible<T> {
         let client = self.clients.try_lock()?.get(language_id).cloned();
         if client.is_none() {
             failure::bail!("server not running for language {}", language_id);
