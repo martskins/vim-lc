@@ -11,45 +11,29 @@ use lsp_types::*;
 use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::Arc;
-use tokio::io::BufReader;
+use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::Mutex;
 
-type Client = rpc::Client<BufReader<ChildStdout>, ChildStdin>;
+type Client<I, O> = rpc::Client<BufReader<I>, O>;
 
-#[derive(Debug, Clone)]
-pub struct LanguageClient {
-    clients: Arc<Mutex<HashMap<String, Client>>>,
+#[derive(Debug)]
+pub struct LanguageClient<I, O> {
+    clients: Arc<Mutex<HashMap<String, Client<I, O>>>>,
     state: Arc<Mutex<State>>,
 }
 
-impl LanguageClient {
-    pub fn new() -> Self {
-        let clients = Arc::new(Mutex::new(HashMap::new()));
-        let state = Arc::new(Mutex::new(State::default()));
-
-        Self { clients, state }
+impl<I, O> Clone for LanguageClient<I, O> {
+    fn clone(&self) -> LanguageClient<I, O> {
+        Self {
+            clients: self.clients.clone(),
+            state: self.state.clone(),
+        }
     }
+}
 
-    fn spawn_reader(&self, language_id: String, mut client: Client) -> Fallible<()> {
-        self.clients
-            .try_lock()?
-            .insert(language_id.clone().into(), client.clone());
-
-        let lc = self.clone();
-        tokio::spawn(async move {
-            let language_id = language_id.clone();
-            loop {
-                let message = client.read().await.unwrap();
-                if let Err(err) = lc.handle_message(language_id.as_str(), message).await {
-                    log::error!("{}", err);
-                }
-            }
-        });
-
-        Ok(())
-    }
-
+impl LanguageClient<ChildStdout, ChildStdin> {
+    /// runs the binary specified in the config file for the given language_id
     pub async fn start_server(&mut self, language_id: &str) -> Fallible<()> {
         let binpath = CONFIG.servers.get(language_id);
         if binpath.is_none() {
@@ -70,12 +54,44 @@ impl LanguageClient {
             cmd.stdin.unwrap(),
         );
 
-        self.spawn_reader(language_id.into(), client.clone())?;
+        self.spawn_reader(language_id.into(), client)?;
+
+        Ok(())
+    }
+}
+
+#[allow(deprecated)]
+impl<I, O> LanguageClient<I, O>
+where
+    I: AsyncRead + Unpin + Send + 'static,
+    O: AsyncWrite + Unpin + Send + 'static,
+{
+    pub fn new() -> Self {
+        let clients = Arc::new(Mutex::new(HashMap::new()));
+        let state = Arc::new(Mutex::new(State::default()));
+        Self { clients, state }
+    }
+
+    fn spawn_reader(&self, language_id: String, client: Client<I, O>) -> Fallible<()> {
+        self.clients
+            .try_lock()?
+            .insert(language_id.clone(), client.clone());
+
+        let lc = self.clone();
+        tokio::spawn(async move {
+            let language_id = language_id.clone();
+            loop {
+                let message = client.read().await.unwrap();
+                if let Err(err) = lc.handle_message(language_id.as_str(), message).await {
+                    log::error!("{}", err);
+                }
+            }
+        });
 
         Ok(())
     }
 
-    fn get_client(&self, language_id: &str) -> Fallible<Client> {
+    fn get_client(&self, language_id: &str) -> Fallible<Client<I, O>> {
         let client = self.clients.try_lock()?.get(language_id).cloned();
         if client.is_none() {
             failure::bail!("server not running for language {}", language_id);
@@ -129,7 +145,7 @@ impl LanguageClient {
         input: super::vim::TextDocumentPosition,
     ) -> Fallible<Option<Hover>> {
         let input: TextDocumentPositionParams = input.into();
-        let mut client = self.get_client(language_id)?;
+        let client = self.get_client(language_id)?;
         let response: Option<Hover> = client.call(request::HoverRequest::METHOD, input).await?;
 
         Ok(response)
@@ -192,7 +208,7 @@ impl LanguageClient {
     }
 
     pub async fn initialize(&self, language_id: &str) -> Fallible<()> {
-        let mut client = self.get_client(language_id)?;
+        let client = self.get_client(language_id)?;
         let message = InitializeParams {
             // TODO: set the process id
             process_id: Some(1234),
@@ -219,19 +235,19 @@ impl LanguageClient {
     }
 
     pub async fn shutdown(&self, language_id: &str) -> Fallible<()> {
-        let mut client = self.get_client(language_id)?;
+        let client = self.get_client(language_id)?;
         client.call(request::Shutdown::METHOD, ()).await?;
         Ok(())
     }
 
     pub async fn exit(&self, language_id: &str) -> Fallible<()> {
-        let mut client = self.get_client(language_id)?;
+        let client = self.get_client(language_id)?;
         client.notify(notification::Exit::METHOD, ()).await?;
         Ok(())
     }
 
     pub async fn initialized(&self, language_id: &str) -> Fallible<()> {
-        let mut client = self.get_client(language_id)?;
+        let client = self.get_client(language_id)?;
         client
             .notify(notification::Initialized::METHOD, InitializedParams {})
             .await?;
@@ -244,7 +260,7 @@ impl LanguageClient {
         input: super::vim::TextDocumentPosition,
     ) -> Fallible<Option<request::GotoImplementationResponse>> {
         let input: TextDocumentPositionParams = input.into();
-        let mut client = self.get_client(language_id)?;
+        let client = self.get_client(language_id)?;
         let message: Option<request::GotoImplementationResponse> = client
             .call(request::GotoImplementation::METHOD, input)
             .await?;
@@ -257,7 +273,7 @@ impl LanguageClient {
         input: super::vim::TextDocumentPosition,
     ) -> Fallible<Option<Vec<lsp_types::Location>>> {
         let input: TextDocumentPositionParams = input.into();
-        let mut client = self.get_client(language_id)?;
+        let client = self.get_client(language_id)?;
         let message: Option<Vec<lsp_types::Location>> =
             client.call(request::References::METHOD, input).await?;
         Ok(message)
@@ -268,8 +284,8 @@ impl LanguageClient {
         language_id: &str,
         params: TextDocumentPositionParams,
     ) -> Fallible<Option<request::GotoDefinitionResponse>> {
-        let input: TextDocumentPositionParams = params.into();
-        let mut client = self.get_client(language_id)?;
+        let input: TextDocumentPositionParams = params;
+        let client = self.get_client(language_id)?;
         let message: Option<request::GotoDefinitionResponse> =
             client.call(request::GotoDefinition::METHOD, input).await?;
         Ok(message)
@@ -286,7 +302,7 @@ impl LanguageClient {
             },
         };
 
-        let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
+        let client = LANGUAGE_CLIENT.get_client(language_id)?;
         client
             .notify(notification::DidSaveTextDocument::METHOD, input)
             .await
@@ -307,7 +323,7 @@ impl LanguageClient {
             },
         };
 
-        let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
+        let client = LANGUAGE_CLIENT.get_client(language_id)?;
         client
             .notify(notification::DidCloseTextDocument::METHOD, input)
             .await
@@ -339,7 +355,7 @@ impl LanguageClient {
             }],
         };
 
-        let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
+        let client = LANGUAGE_CLIENT.get_client(language_id)?;
         client
             .notify(notification::DidChangeTextDocument::METHOD, input)
             .await
@@ -356,7 +372,7 @@ impl LanguageClient {
             work_done_progress_params: WorkDoneProgressParams::default(),
         };
 
-        let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
+        let client = LANGUAGE_CLIENT.get_client(language_id)?;
         let response: Option<WorkspaceEdit> = client.call(request::Rename::METHOD, params).await?;
         Ok(response)
     }
@@ -384,7 +400,7 @@ impl LanguageClient {
             },
         };
 
-        let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
+        let client = LANGUAGE_CLIENT.get_client(language_id)?;
         client
             .notify(notification::DidOpenTextDocument::METHOD, input)
             .await
@@ -403,7 +419,7 @@ impl LanguageClient {
             partial_result_params: Default::default(),
         };
 
-        let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
+        let client = LANGUAGE_CLIENT.get_client(language_id)?;
         let response: Option<Vec<CodeLens>> =
             client.call(request::CodeLensRequest::METHOD, input).await?;
         let response = response.unwrap_or_default();
@@ -465,7 +481,7 @@ impl LanguageClient {
         language_id: &str,
         code_lens: &CodeLens,
     ) -> Fallible<CodeLens> {
-        let mut client = self.get_client(language_id)?;
+        let client = self.get_client(language_id)?;
         let result: CodeLens = client
             .call(request::CodeLensResolve::METHOD, code_lens)
             .await?;
@@ -484,40 +500,9 @@ impl LanguageClient {
             context: Default::default(),
         };
 
-        let mut client = LANGUAGE_CLIENT.get_client(language_id)?;
+        let client = LANGUAGE_CLIENT.get_client(language_id)?;
         let message = client.call(request::Completion::METHOD, input).await?;
 
         Ok(message)
-    }
-
-    fn workspace_edit_from(&self, f: WorkspaceEdit) -> Fallible<super::vim::WorkspaceEdit> {
-        let document_changes = f
-            .document_changes
-            .unwrap_or(lsp_types::DocumentChanges::Edits(vec![]));
-
-        let pwd = std::env::current_dir()?;
-        let pwd = format!("file://{}/", pwd.to_str().unwrap());
-        let changes = match document_changes {
-            lsp_types::DocumentChanges::Edits(edits) => edits
-                .into_iter()
-                .map(|v| super::vim::TextDocumentChanges {
-                    text_document: v.text_document.uri.to_string().replace(pwd.as_str(), ""),
-                    edits: v
-                        .edits
-                        .into_iter()
-                        .map(|e| {
-                            let lines = vec![super::vim::Line {
-                                lnum: e.range.start.line,
-                                text: e.new_text.clone(),
-                            }];
-                            super::vim::TextDocumentEdit { lines }
-                        })
-                        .collect(),
-                })
-                .collect(),
-            lsp_types::DocumentChanges::Operations(operations) => vec![],
-        };
-
-        Ok(super::vim::WorkspaceEdit { changes })
     }
 }

@@ -25,19 +25,6 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn body(&self) -> Fallible<String> {
-        let value = match self {
-            Message::MethodCall(msg) => serde_json::to_string(&msg.params)?,
-            Message::Notification(msg) => serde_json::to_string(&msg.params)?,
-            Message::Output(msg) => match msg {
-                jsonrpc_core::Output::Success(msg) => serde_json::to_string(&msg.result)?,
-                jsonrpc_core::Output::Failure(msg) => serde_json::to_string(&msg.error)?,
-            },
-        };
-
-        Ok(value)
-    }
-
     pub fn id(&self) -> jsonrpc_core::Id {
         match self {
             Message::MethodCall(msg) => msg.id.clone(),
@@ -46,22 +33,6 @@ impl Message {
                 jsonrpc_core::Output::Success(msg) => msg.id.clone(),
                 jsonrpc_core::Output::Failure(msg) => msg.id.clone(),
             },
-        }
-    }
-
-    pub fn kind(&self) -> &str {
-        match self {
-            Message::MethodCall(_) => "method_call",
-            Message::Notification(_) => "notification",
-            Message::Output(_) => "output",
-        }
-    }
-
-    pub fn method(&self) -> &str {
-        match self {
-            Message::MethodCall(msg) => msg.method.as_str(),
-            Message::Notification(msg) => msg.method.as_str(),
-            Message::Output(_) => "",
         }
     }
 }
@@ -102,36 +73,11 @@ where
         }
     }
 
-    // pub fn new(rpcserver: RpcServer, reader: Arc<Mutex<I>>, writer: Arc<Mutex<O>>) -> Self {
-    //     Self {
-    //         rpcserver,
-    //         reader,
-    //         writer,
-    //         id: Arc::new(Mutex::new(AtomicU64::default())),
-    //         pending_responses: Arc::new(Mutex::new(HashMap::new())),
-    //     }
-    // }
-
     pub fn cancel(&self, message_id: &jsonrpc_core::Id) -> Fallible<()> {
         let mut pending_responses = self.pending_responses.try_lock()?;
         pending_responses.remove(message_id);
         Ok(())
     }
-
-    // pub async fn reply_failure(
-    //     &self,
-    //     message_id: &jsonrpc_core::Id,
-    //     error: jsonrpc_core::Error,
-    // ) -> Fallible<()> {
-    //     let msg = jsonrpc_core::Output::Failure(jsonrpc_core::Failure {
-    //         jsonrpc: Some(jsonrpc_core::Version::V2),
-    //         error,
-    //         id: message_id.clone(),
-    //     });
-
-    //     self.send_raw(msg).await?;
-    //     Ok(())
-    // }
 
     pub async fn reply_success(
         &self,
@@ -153,7 +99,6 @@ where
         message_id: &jsonrpc_core::Id,
         message: jsonrpc_core::Output,
     ) -> Fallible<()> {
-        log::error!("{:?} {:?}", message_id, message);
         let mut pending_responses = self.pending_responses.try_lock()?;
         if let Some(tx) = pending_responses.remove(message_id) {
             tx.send(message)?;

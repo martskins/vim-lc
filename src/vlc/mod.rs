@@ -4,36 +4,50 @@ use crate::rpc;
 use crate::vim::*;
 use crate::LANGUAGE_CLIENT;
 use failure::Fallible;
-use tokio::io::{BufReader, Stdin, Stdout};
+use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
-#[derive(Debug, Clone)]
-pub struct VLC {
-    client: rpc::Client<BufReader<Stdin>, Stdout>,
+#[derive(Debug)]
+pub struct VLC<I, O> {
+    client: rpc::Client<BufReader<I>, O>,
 }
 
-impl VLC {
-    pub fn new() -> VLC {
-        let client = rpc::Client::new(
-            rpc::ServerID::VIM,
-            BufReader::new(tokio::io::stdin()),
-            tokio::io::stdout(),
-        );
+impl<I, O> Clone for VLC<I, O>
+where
+    I: AsyncRead + Unpin + Send + 'static,
+    O: AsyncWrite + Unpin + Send + 'static,
+{
+    fn clone(&self) -> Self {
+        VLC {
+            client: self.client.clone(),
+        }
+    }
+}
 
+impl<I, O> VLC<I, O>
+where
+    I: AsyncRead + Unpin + Send + 'static,
+    O: AsyncWrite + Unpin + Send + 'static,
+{
+    pub fn new(reader: I, writer: O) -> VLC<I, O> {
+        let client = rpc::Client::new(rpc::ServerID::VIM, BufReader::new(reader), writer);
         Self { client }
     }
 
     pub async fn run(&self) -> Fallible<()> {
         let vlc = self.clone();
-        vlc.loop_read().await?;
-        Ok(())
+        tokio::spawn(async move {
+            vlc.loop_read().await.unwrap();
+        });
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(400));
+        }
     }
 
     async fn loop_read(&self) -> Fallible<()> {
-        let client = self.client.clone();
-        let vlc = self.clone();
         loop {
-            let message = client.read().await?;
-            if let Err(err) = vlc.handle_message(message).await {
+            log::error!("READ");
+            let message = self.client.read().await?;
+            if let Err(err) = self.handle_message(message).await {
                 log::error!("{}", err);
             }
         }
@@ -71,7 +85,7 @@ impl VLC {
     async fn did_open(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT
-            .text_document_did_open(&language_id, params.clone().into())
+            .text_document_did_open(&language_id, params.clone())
             .await?;
         self.code_lens(params.into()).await?;
         Ok(())
@@ -80,7 +94,7 @@ impl VLC {
     async fn did_save(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT
-            .text_document_did_save(&language_id, params.clone().into())
+            .text_document_did_save(&language_id, params.clone())
             .await?;
         self.code_lens(params.into()).await?;
         Ok(())
@@ -89,7 +103,7 @@ impl VLC {
     async fn did_close(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT
-            .text_document_did_close(&language_id, params.into())
+            .text_document_did_close(&language_id, params)
             .await?;
         Ok(())
     }
@@ -97,7 +111,7 @@ impl VLC {
     async fn did_change(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT
-            .text_document_did_change(&language_id, params.clone().into())
+            .text_document_did_change(&language_id, params.clone())
             .await?;
         self.code_lens(params.into()).await?;
         Ok(())
@@ -106,7 +120,7 @@ impl VLC {
     async fn implementation(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
-            .text_document_implementation(&language_id, params.into())
+            .text_document_implementation(&language_id, params)
             .await?;
         if response.is_none() {
             return Ok(());
@@ -133,7 +147,7 @@ impl VLC {
     async fn hover(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
-            .text_document_hover(&language_id, params.into())
+            .text_document_hover(&language_id, params)
             .await?;
         if response.is_none() {
             return Ok(());
@@ -146,7 +160,7 @@ impl VLC {
     async fn references(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
-            .text_document_references(&language_id, params.into())
+            .text_document_references(&language_id, params)
             .await?;
         if response.is_none() {
             return Ok(());
@@ -180,12 +194,7 @@ impl VLC {
         let virtual_texts: Vec<Option<VirtualText>> = response
             .into_iter()
             .map(|cl| {
-                if cl.command.is_none() {
-                    return None;
-                }
-                let command = cl.command.unwrap();
-
-                let text = command.title;
+                let text = cl.command?.title;
                 let line = cl.range.start.line;
 
                 Some(VirtualText {
@@ -209,7 +218,7 @@ impl VLC {
     ) -> Fallible<()> {
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
-            .text_document_completion(&language_id, params.into())
+            .text_document_completion(&language_id, params)
             .await?;
         if response.is_none() {
             return Ok(());

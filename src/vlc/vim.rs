@@ -2,8 +2,13 @@ use super::VLC;
 use crate::vim::*;
 use crate::VIM;
 use failure::Fallible;
+use tokio::io::{AsyncRead, AsyncWrite};
 
-impl VLC {
+impl<I, O> VLC<I, O>
+where
+    I: AsyncRead + Unpin + Send + 'static,
+    O: AsyncWrite + Unpin + Send + 'static,
+{
     pub async fn apply_edits(&self, edits: lsp_types::WorkspaceEdit) -> Fallible<()> {
         let client = self.client.clone();
 
@@ -22,13 +27,13 @@ impl VLC {
                 command: "getline('.')".into(),
             })
             .await?;
-        Ok("".into())
+        Ok(line)
     }
 
     fn workspace_edit_from(&self, f: lsp_types::WorkspaceEdit) -> Fallible<WorkspaceEdit> {
         let document_changes = f
             .document_changes
-            .unwrap_or(lsp_types::DocumentChanges::Edits(vec![]));
+            .unwrap_or_else(|| lsp_types::DocumentChanges::Edits(vec![]));
 
         let pwd = std::env::current_dir()?;
         let pwd = format!("file://{}/", pwd.to_str().unwrap());
@@ -43,7 +48,7 @@ impl VLC {
                         .map(|e| {
                             let lines = vec![Line {
                                 lnum: e.range.start.line,
-                                text: e.new_text.clone(),
+                                text: e.new_text,
                             }];
                             TextDocumentEdit { lines }
                         })
