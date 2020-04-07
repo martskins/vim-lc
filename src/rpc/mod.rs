@@ -1,60 +1,16 @@
+mod protocol;
+
 use async_trait::async_trait;
 use crossbeam::Sender;
 use failure::Fallible;
-use jsonrpc_core::Params;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_json::Value;
+pub use protocol::*;
+use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::Mutex;
-
-#[async_trait]
-pub trait RPCClient {
-    async fn read(&self) -> Fallible<Message>;
-    async fn resolve(&self, id: &jsonrpc_core::Id, message: jsonrpc_core::Output) -> Fallible<()>;
-    async fn reply_success(
-        &self,
-        id: &jsonrpc_core::Id,
-        message: serde_json::Value,
-    ) -> Fallible<()>;
-    async fn call<M, R>(&self, method: &str, message: M) -> Fallible<R>
-    where
-        M: Serialize + std::fmt::Debug + Clone + Send,
-        R: DeserializeOwned;
-    async fn notify<M>(&self, method: &str, message: M) -> Fallible<()>
-    where
-        M: Serialize + Send;
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum ServerID {
-    VIM,
-    LanguageServer,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Message {
-    MethodCall(jsonrpc_core::MethodCall),
-    Notification(jsonrpc_core::Notification),
-    Output(jsonrpc_core::Output),
-}
-
-impl Message {
-    pub fn id(&self) -> jsonrpc_core::Id {
-        match self {
-            Message::MethodCall(msg) => msg.id.clone(),
-            Message::Notification(_) => jsonrpc_core::Id::Null,
-            Message::Output(msg) => match msg {
-                jsonrpc_core::Output::Success(msg) => msg.id.clone(),
-                jsonrpc_core::Output::Failure(msg) => msg.id.clone(),
-            },
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct Client<I, O> {
@@ -211,27 +167,5 @@ where
             jsonrpc_core::Output::Success(s) => Ok(serde_json::from_value(s.result)?),
             jsonrpc_core::Output::Failure(s) => failure::bail!(s.error),
         }
-    }
-}
-
-pub trait ToParams {
-    fn to_params(self) -> Fallible<Params>;
-}
-
-impl<T> ToParams for T
-where
-    T: Serialize,
-{
-    fn to_params(self) -> Fallible<Params> {
-        let json_value = serde_json::to_value(self)?;
-
-        let params = match json_value {
-            Value::Null => Params::None,
-            Value::Bool(_) | Value::Number(_) | Value::String(_) => Params::Array(vec![json_value]),
-            Value::Array(vec) => Params::Array(vec),
-            Value::Object(map) => Params::Map(map),
-        };
-
-        Ok(params)
     }
 }
