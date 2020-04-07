@@ -680,8 +680,6 @@ checksum = "ee5a0dd887e37d37390c13ff8ac830f992307fe30a1fff0ab8427af67211ba28"
 dependencies = [
  "bytes",
  "fnv",
- "futures-core",
- "iovec",
  "lazy_static",
  "libc",
  "memchr",
@@ -691,7 +689,6 @@ dependencies = [
  "num_cpus",
  "pin-project-lite",
  "signal-hook-registry",
- "slab",
  "tokio-macros",
  "winapi 0.3.8",
 ]
