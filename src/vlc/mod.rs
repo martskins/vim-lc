@@ -5,14 +5,16 @@ use crate::rpc::RPCClient;
 use crate::vim::*;
 use crate::LANGUAGE_CLIENT;
 use failure::Fallible;
+use tokio::io::{stdin, stdout, BufReader, Stdin, Stdout};
 
 #[derive(Debug)]
 pub struct VLC<T> {
     client: T,
 }
 
-impl<T> VLC<T> {
-    pub fn new(client: T) -> VLC<T> {
+impl VLC<rpc::Client<BufReader<Stdin>, Stdout>> {
+    pub fn new() -> VLC<rpc::Client<BufReader<Stdin>, Stdout>> {
+        let client = rpc::Client::new(rpc::ServerID::VIM, BufReader::new(stdin()), stdout());
         Self { client }
     }
 }
