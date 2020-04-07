@@ -20,10 +20,21 @@ function! vim#handleError(job, lines, event) abort
     echoerr json_decode(a:lines)
 endfunction
 
-function! vim#cmd(commands) abort
-  for l:cmd in a:commands
-    execute l:cmd
+function! vim#execute(commands) abort
+  let l:res = []
+  for l:params in a:commands
+    let l:action = l:params['action']
+    let l:command = l:params['command']
+    if l:action ==# 'execute'
+      execute l:command
+      let l:res = add(l:res, v:null)
+    elseif l:action ==# 'call'
+      let l:result = eval(l:command)
+      let l:res = add(l:res, l:result)
+    endif
   endfor
+
+  return l:res
 endfunction
 
 function! vim#eval(params) abort
@@ -36,10 +47,10 @@ function! vim#applyChanges(changes) abort
   for change in a:changes['edits']
     for line in change['lines']
       let l:lnum = line['lnum']
-      " let l:current_line = getline(l:lnum)
       call setline(l:lnum, line['text'])
     endfor
   endfor
+  execute ':w'
 endfunction
 
 function! vim#setVirtualTexts(params) abort
@@ -66,9 +77,6 @@ function! vim#setQuickfix(params) abort
 
   let l:params = []
   for l:line in a:params
-    if len(l:line['text']) ==# 0
-      let l:line['text'] = getbufline(l:line['filename'], l:line['lnum'])[0]
-    endif
     let l:params = add(l:params, l:line)
   endfor
 

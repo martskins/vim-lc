@@ -37,8 +37,8 @@ impl Client {
         I: AsyncBufReadExt + Unpin + Send + 'static,
         O: AsyncWrite + Unpin + Send + 'static,
     {
-        let (pending_tx, pending_rx) = crossbeam::bounded(1);
-        let (reader_tx, reader_rx) = crossbeam::bounded(1);
+        let (pending_tx, pending_rx) = crossbeam::unbounded();
+        let (reader_tx, reader_rx) = crossbeam::unbounded();
         {
             let server_id = server_id.clone();
             tokio::spawn(async move {
@@ -48,7 +48,7 @@ impl Client {
             });
         }
 
-        let (writer_tx, writer_rx) = crossbeam::bounded(1);
+        let (writer_tx, writer_rx) = crossbeam::unbounded();
         {
             let server_id = server_id.clone();
             tokio::spawn(async move {
@@ -156,7 +156,7 @@ impl RPCClient for Client {
 
     fn notify<M>(&self, method: &str, message: M) -> Fallible<()>
     where
-        M: Serialize + Send,
+        M: Serialize,
     {
         let message = jsonrpc_core::Notification {
             jsonrpc: Some(jsonrpc_core::Version::V2),
@@ -170,7 +170,7 @@ impl RPCClient for Client {
 
     fn call<M, R>(&self, method: &str, message: M) -> Fallible<R>
     where
-        M: Serialize + std::fmt::Debug + Clone + Send,
+        M: Serialize,
         R: DeserializeOwned,
     {
         let (tx, rx) = crossbeam::bounded(1);

@@ -1,76 +1,101 @@
 use super::VLC;
 use crate::rpc::RPCClient;
 use crate::vim::*;
+use crate::LANGUAGE_CLIENT;
 use crate::VIM;
 use failure::Fallible;
 
 impl<T> VLC<T>
 where
-    T: RPCClient + Clone + Sync + Unpin + Send + 'static,
+    T: RPCClient,
 {
     pub fn apply_edits(&self, edits: lsp_types::WorkspaceEdit) -> Fallible<()> {
-        let edits = self.workspace_edit_from(edits)?;
-        self.client.notify("applyEdits", edits)?;
-
+        let changes = self.text_document_changes(edits)?;
+        self.client.notify("applyEdits", changes)?;
         Ok(())
     }
 
-    fn get_line(&self, filename: &str, line_number: u64) -> Fallible<String> {
-        let line = self.eval(EvalParams {
-            command: format!("getline({})", line_number),
-        })?;
-        Ok(line)
+    async fn text_document_edits(
+        &self,
+        filename: &str,
+        edits: lsp_types::TextDocumentEdit,
+    ) -> Fallible<Vec<TextDocumentEdit>> {
+        let tasks: Vec<_> = edits
+            .edits
+            .into_iter()
+            .map(|e| self.text_document_edit(filename, e))
+            .collect();
+
+        let out = futures::future::join_all(tasks)
+            .await
+            .into_iter()
+            .filter(Result::is_ok)
+            .map(|c| c.unwrap())
+            .collect();
+        Ok(out)
     }
 
-    fn workspace_edit_from(&self, f: lsp_types::WorkspaceEdit) -> Fallible<WorkspaceEdit> {
+    async fn text_document_edit(
+        &self,
+        filename: &str,
+        edit: lsp_types::TextEdit,
+    ) -> Fallible<TextDocumentEdit> {
+        let mut line: String = LANGUAGE_CLIENT
+            .get_line(filename, edit.range.start.line + 1)
+            .await?;
+
+        let start = edit.range.start.character as usize;
+        let end = edit.range.end.character as usize;
+        line.replace_range(start..end, &edit.new_text);
+
+        let lines = vec![Line {
+            lnum: edit.range.start.line + 1,
+            text: line,
+        }];
+
+        Ok(TextDocumentEdit { lines })
+    }
+
+    async fn text_document_change_from_edit(
+        &self,
+        edit: lsp_types::TextDocumentEdit,
+    ) -> Fallible<TextDocumentChanges> {
+        let text_document = edit
+            .text_document
+            .uri
+            .to_string()
+            .replace(self.root_path.as_str(), "");
+        Ok(TextDocumentChanges {
+            text_document: text_document.clone(),
+            edits: self.text_document_edits(&text_document, edit).await?,
+        })
+    }
+
+    fn text_document_changes(
+        &self,
+        f: lsp_types::WorkspaceEdit,
+    ) -> Fallible<Vec<TextDocumentChanges>> {
         let document_changes = f
             .document_changes
             .unwrap_or_else(|| lsp_types::DocumentChanges::Edits(vec![]));
 
-        let pwd = std::env::current_dir()?;
-        let pwd = format!("file://{}/", pwd.to_str().unwrap());
+        use futures::executor::block_on;
         let changes = match document_changes {
             lsp_types::DocumentChanges::Edits(edits) => edits
                 .into_iter()
-                .map(|v| {
-                    TextDocumentChanges {
-                        text_document: v.text_document.uri.to_string().replace(pwd.as_str(), ""),
-                        edits: v
-                            .edits
-                            .into_iter()
-                            .map(|e| {
-                                // TODO: parallelize these
-                                let mut line: String = self
-                                    .get_line("cmd/api/main.go", e.range.start.line + 1)
-                                    .unwrap();
-                                line.replace_range(
-                                    e.range.start.character as usize
-                                        ..e.range.end.character as usize,
-                                    &e.new_text,
-                                );
-
-                                let lines = vec![Line {
-                                    lnum: e.range.start.line + 1,
-                                    text: line,
-                                }];
-                                TextDocumentEdit { lines }
-                            })
-                            .collect(),
-                    }
-                })
+                .map(|v| block_on(self.text_document_change_from_edit(v)))
+                .filter(Result::is_ok)
+                .map(|c| c.unwrap())
                 .collect(),
             lsp_types::DocumentChanges::Operations(operations) => vec![],
         };
 
-        Ok(WorkspaceEdit { changes })
+        Ok(changes)
     }
 
     pub fn show_diagnostics(&self, mut diagnostics: Vec<Diagnostic>) -> Fallible<()> {
-        let pwd = std::env::current_dir()?;
-        let pwd = format!("file://{}/", pwd.to_str().unwrap());
-
         diagnostics.iter_mut().for_each(|d| {
-            d.text_document = d.text_document.replace(pwd.as_str(), "");
+            d.text_document = d.text_document.replace(self.root_path.as_str(), "");
         });
 
         let quickfix_list: Vec<QuickfixItem> =
@@ -129,6 +154,8 @@ where
     }
 
     pub fn show_locations(&self, input: Vec<Location>) -> Fallible<()> {
+        use futures::executor::block_on;
+
         if input.is_empty() {
             return Ok(());
         }
@@ -137,17 +164,22 @@ where
             return self.jump_to_location(input.first().cloned().unwrap());
         }
 
-        let pwd = std::env::current_dir()?;
-        let pwd = format!("file://{}/", pwd.to_str().unwrap());
         let list = input
             .into_iter()
-            .map(|l| QuickfixItem {
-                bufnr: 0,
-                filename: l.filename.replace(pwd.as_str(), ""),
-                lnum: l.line,
-                col: l.col,
-                text: String::new(),
-                kind: 'W',
+            .map(|l| {
+                let filename = l.filename.replace(self.root_path.as_str(), "");
+                // TODO: parallelize these calls
+                let text = block_on(LANGUAGE_CLIENT.get_line(filename.as_str(), l.line))
+                    .unwrap_or_default();
+
+                QuickfixItem {
+                    bufnr: 0,
+                    filename: l.filename.replace(self.root_path.as_str(), ""),
+                    lnum: l.line,
+                    col: l.col,
+                    text,
+                    kind: 'W',
+                }
             })
             .collect();
 
@@ -156,17 +188,37 @@ where
     }
 
     pub fn jump_to_location(&self, input: Location) -> Fallible<()> {
-        let command = format!("cursor({}, {})", input.line, input.col);
-        self.call(EvalParams { command })?;
+        self.execute(vec![
+            ExecuteParams {
+                action: "execute".into(),
+                command: format!(
+                    "execute 'edit' '{}'",
+                    input.filename.replace(self.root_path.as_str(), "")
+                ),
+            },
+            ExecuteParams {
+                action: "call".into(),
+                command: format!("cursor({}, {})", input.line, input.col),
+            },
+        ])?;
         Ok(())
     }
 
+    /// evaluates an expression in vim and waits for the response.
     pub fn eval<R: serde::de::DeserializeOwned>(&self, cmd: EvalParams) -> Fallible<R> {
         let client = VIM.client.clone();
         let res: R = client.call("eval", cmd)?;
         Ok(res)
     }
 
+    /// evaluates multiple commands and returns a vec of values.
+    fn execute(&self, cmd: Vec<ExecuteParams>) -> Fallible<Vec<serde_json::Value>> {
+        let client = VIM.client.clone();
+        let res: Vec<serde_json::Value> = client.call("execute", cmd)?;
+        Ok(res)
+    }
+
+    /// evaluates an expression in vim and immediately returns.
     pub fn call(&self, cmd: EvalParams) -> Fallible<()> {
         let client = VIM.client.clone();
         client.notify("call", cmd)?;
@@ -182,13 +234,6 @@ where
     fn set_quickfix(&self, list: Vec<QuickfixItem>) -> Fallible<()> {
         let client = VIM.client.clone();
         client.notify("setQuickfix", list)?;
-        // self.command(vec!["copen"]).await?;
-        Ok(())
-    }
-
-    fn command(&self, cmd: Vec<&str>) -> Fallible<()> {
-        let client = VIM.client.clone();
-        client.notify("command", cmd)?;
         Ok(())
     }
 

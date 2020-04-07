@@ -10,12 +10,15 @@ use tokio::io::{stdin, stdout, BufReader};
 #[derive(Debug)]
 pub struct VLC<T> {
     client: T,
+    root_path: String,
 }
 
-impl VLC<rpc::Client> {
-    pub fn new() -> VLC<rpc::Client> {
+impl Default for VLC<rpc::Client> {
+    fn default() -> VLC<rpc::Client> {
         let client = rpc::Client::new(rpc::ServerID::VIM, BufReader::new(stdin()), stdout());
-        Self { client }
+        let root_path = std::env::current_dir().unwrap();
+        let root_path = format!("file://{}/", root_path.to_str().unwrap());
+        Self { client, root_path }
     }
 }
 
@@ -26,13 +29,14 @@ where
     fn clone(&self) -> Self {
         VLC {
             client: self.client.clone(),
+            root_path: self.root_path.clone(),
         }
     }
 }
 
 impl<T> VLC<T>
 where
-    T: RPCClient + Clone + Unpin + Sync + Send + 'static,
+    T: RPCClient,
 {
     pub async fn run(&self) -> Fallible<()> {
         loop {
@@ -179,8 +183,7 @@ where
             .filter(|i| !i.is_none())
             .collect();
 
-        let client = self.client.clone();
-        client.notify("setVirtualTexts", virtual_texts)?;
+        self.client.notify("setVirtualTexts", virtual_texts)?;
         Ok(())
     }
 
@@ -216,8 +219,8 @@ where
         };
 
         let list = CompletionList { words: list };
-        let client = self.client.clone();
-        client.reply_success(&message_id, serde_json::to_value(&list)?)?;
+        self.client
+            .reply_success(&message_id, serde_json::to_value(&list)?)?;
 
         Ok(())
     }
@@ -266,7 +269,7 @@ where
                 }
                 "exit" => {
                     let params: BaseParams = serde_json::from_value(msg.params.into())?;
-                    self.shutdown(params)?;
+                    self.exit(params)?;
                 }
                 "textDocument/completion" => {
                     let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;

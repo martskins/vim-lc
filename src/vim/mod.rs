@@ -179,6 +179,12 @@ pub struct EvalParams {
     pub command: String,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ExecuteParams {
+    pub action: String,
+    pub command: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct QuickfixItem {
     pub bufnr: u64,

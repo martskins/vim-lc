@@ -65,7 +65,7 @@ impl LanguageClient<rpc::Client> {
 #[allow(deprecated)]
 impl<T> LanguageClient<T>
 where
-    T: RPCClient + Clone + Send + Sync + 'static,
+    T: RPCClient + Clone + Send + 'static,
 {
     pub fn new() -> Self {
         let clients = Arc::new(Mutex::new(HashMap::new()));
@@ -74,9 +74,7 @@ where
     }
 
     fn spawn_reader(&self, language_id: String, client: T) -> Fallible<()> {
-        self.clients
-            .try_lock()?
-            .insert(language_id.clone(), client.clone());
+        self.clients.try_lock()?.insert(language_id, client.clone());
 
         let lc = self.clone();
         tokio::spawn(async move {
@@ -98,6 +96,26 @@ where
         }
 
         Ok(client.unwrap())
+    }
+
+    pub async fn get_line(&self, file: &str, line_number: u64) -> Fallible<String> {
+        let state = self.state.try_lock()?;
+        let text_document = state.text_documents.get(file).cloned();
+        drop(state);
+
+        let idx = line_number as usize - 1;
+        match text_document {
+            Some((_, lines)) => Ok(lines[idx].clone()),
+            None => {
+                use tokio::io::AsyncReadExt;
+                let mut file = tokio::fs::File::open(file).await?;
+                let mut text = String::new();
+                file.read_to_string(&mut text).await?;
+                let lines: Vec<&str> = text.split('\n').collect();
+                let line = lines[idx].to_owned();
+                Ok(line)
+            }
+        }
     }
 
     /// handles messages sent from vim to the language client
@@ -325,7 +343,7 @@ where
     ) -> Fallible<()> {
         let state = self.state.clone();
         let state = state.try_lock()?;
-        let version = state
+        let (version, _) = state
             .text_documents
             .get(&input.text_document)
             .cloned()
@@ -374,15 +392,19 @@ where
         let mut version = state.text_documents.get(&input.text_document).cloned();
 
         if version.is_none() {
-            version = Some(0);
-            state.text_documents.insert(input.text_document.clone(), 0);
+            let v = (0, input.text.split("\n").map(|l| l.to_owned()).collect());
+            state
+                .text_documents
+                .insert(input.text_document.clone(), v.clone());
+            version = Some(v);
         }
 
+        let (version, _) = version.unwrap();
         let input = DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: Url::from_file_path(input.text_document).unwrap(),
                 language_id: input.language_id,
-                version: version.unwrap() as i64,
+                version: version as i64,
                 text: input.text,
             },
         };

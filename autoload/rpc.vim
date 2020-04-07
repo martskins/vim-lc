@@ -147,8 +147,10 @@ function! rpc#read(job, lines, event) abort
       return vim#showMessage(l:params)
     " applies a list of edits
     elseif l:method ==# 'applyEdits'
-      for changes in l:params['changes']
-        return vim#applyChanges(changes)
+      " l:params is a slice with the following format:
+      "   {edits: [{lines: [{lnum: 2, text: "new text" }]}], text_document: "filename.go" }
+      for l:changes in l:params
+        call vim#applyChanges(l:changes)
       endfor
     " shows the preview window and sets it's content
     elseif l:method ==# 'showPreview'
@@ -171,8 +173,11 @@ function! rpc#read(job, lines, event) abort
       if has_key(l:message, 'id')
         call rpc#reply(l:message['id'], l:res)
       endif
-    elseif l:method ==# 'command'
-      return vim#cmd(l:params)
+    elseif l:method ==# 'execute'
+      let l:res = vim#execute(l:params)
+      if has_key(l:message, 'id')
+        call rpc#reply(l:message['id'], l:res)
+      endif
     endif
   endwhile
 endfunction

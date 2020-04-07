@@ -8,11 +8,11 @@ pub trait RPCClient {
     fn reply_success(&self, id: &jsonrpc_core::Id, message: serde_json::Value) -> Fallible<()>;
     fn call<M, R>(&self, method: &str, message: M) -> Fallible<R>
     where
-        M: Serialize + std::fmt::Debug + Clone + Send,
+        M: Serialize,
         R: DeserializeOwned;
     fn notify<M>(&self, method: &str, message: M) -> Fallible<()>
     where
-        M: Serialize + Send;
+        M: Serialize;
 }
 
 #[derive(Debug, PartialEq, Clone)]
