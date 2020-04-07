@@ -14,12 +14,11 @@ use std::str::FromStr;
 use tokio::io::{BufReader, Stdin, Stdout};
 use tokio::process::{ChildStdin, ChildStdout};
 
-type Client<I, O> = rpc::Client<BufReader<I>, O>;
+// type Client<I, O> = rpc::Client<BufReader<I>, O>;
 
 lazy_static! {
-    pub static ref VIM: vlc::VLC<Client<Stdin, Stdout>> = vlc::VLC::new();
-    pub static ref LANGUAGE_CLIENT: LanguageClient<Client<ChildStdout, ChildStdin>> =
-        LanguageClient::new();
+    pub static ref VIM: vlc::VLC<rpc::Client> = vlc::VLC::new();
+    pub static ref LANGUAGE_CLIENT: LanguageClient<rpc::Client> = LanguageClient::new();
     pub static ref CONFIG: Config =
         block_on(Config::parse("/home/martin/Desktop/config.toml")).unwrap();
 }

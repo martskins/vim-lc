@@ -1,7 +1,6 @@
 mod protocol;
 
-use async_trait::async_trait;
-use crossbeam::Sender;
+use crossbeam::{Receiver, Sender};
 use failure::Fallible;
 pub use protocol::*;
 use serde::{de::DeserializeOwned, Serialize};
@@ -10,103 +9,98 @@ use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio::sync::Mutex;
 
 #[derive(Debug)]
-pub struct Client<I, O> {
+pub struct Client {
     server_id: ServerID,
-    reader: Arc<Mutex<I>>,
-    writer: Arc<Mutex<O>>,
-    id: Arc<Mutex<AtomicU64>>,
-    pending_responses: Arc<Mutex<HashMap<jsonrpc_core::Id, Sender<jsonrpc_core::Output>>>>,
+    reader_rx: Receiver<Message>,
+    writer_tx: Sender<Message>,
+    pending_tx: Sender<(jsonrpc_core::Id, Sender<jsonrpc_core::Output>)>,
+    id: Arc<AtomicU64>,
 }
 
-impl<I, O> Clone for Client<I, O> {
-    fn clone(&self) -> Client<I, O> {
+impl Clone for Client {
+    fn clone(&self) -> Client {
         Self {
             server_id: self.server_id.clone(),
-            reader: self.reader.clone(),
-            writer: self.writer.clone(),
+            reader_rx: self.reader_rx.clone(),
+            writer_tx: self.writer_tx.clone(),
+            pending_tx: self.pending_tx.clone(),
             id: self.id.clone(),
-            pending_responses: self.pending_responses.clone(),
         }
     }
 }
 
-impl<I, O> Client<I, O>
-where
-    I: AsyncBufReadExt + Unpin,
-    O: AsyncWrite + Unpin,
-{
-    pub fn new(server_id: ServerID, reader: I, writer: O) -> Self {
+impl Client {
+    pub fn new<I, O>(server_id: ServerID, reader: I, writer: O) -> Self
+    where
+        I: AsyncBufReadExt + Unpin + Send + 'static,
+        O: AsyncWrite + Unpin + Send + 'static,
+    {
+        let (pending_tx, pending_rx) = crossbeam::bounded(1);
+        let (reader_tx, reader_rx) = crossbeam::bounded(1);
+        {
+            let server_id = server_id.clone();
+            tokio::spawn(async move {
+                loop_read::<I>(server_id, reader, pending_rx, reader_tx)
+                    .await
+                    .unwrap();
+            });
+        }
+
+        let (writer_tx, writer_rx) = crossbeam::bounded(1);
+        {
+            let server_id = server_id.clone();
+            tokio::spawn(async move {
+                loop_write::<O>(server_id, writer, writer_rx).await.unwrap();
+            });
+        }
+
         Self {
             server_id,
-            reader: Arc::new(Mutex::new(reader)),
-            writer: Arc::new(Mutex::new(writer)),
-            id: Arc::new(Mutex::new(AtomicU64::default())),
-            pending_responses: Arc::new(Mutex::new(HashMap::new())),
+            reader_rx,
+            writer_tx,
+            pending_tx,
+            id: Arc::new(AtomicU64::default()),
         }
     }
+}
 
-    pub fn cancel(&self, message_id: &jsonrpc_core::Id) -> Fallible<()> {
-        let mut pending_responses = self.pending_responses.try_lock()?;
-        pending_responses.remove(message_id);
-        Ok(())
-    }
-
-    async fn send_raw<M: Serialize>(&self, message: M) -> Fallible<()> {
+async fn loop_write<O>(
+    server_id: ServerID,
+    mut writer: O,
+    receiver: Receiver<Message>,
+) -> Fallible<()>
+where
+    O: AsyncWrite + Unpin + Send + 'static,
+{
+    for message in receiver.iter() {
         let message = serde_json::to_string(&message)?;
-        log::error!("{:?} <== {}\n", self.server_id, message);
+        log::error!("{:?} <== {}\n", server_id, message);
         let message = message + "\r\n";
 
         let message = message.as_bytes();
         let headers = format!("Content-Length: {}\r\n\r\n", message.len());
 
-        let mut writer = self.writer.try_lock()?;
         writer.write_all(headers.as_bytes()).await?;
         writer.write_all(message).await?;
         writer.flush().await?;
-
-        Ok(())
     }
+
+    Ok(())
 }
 
-#[async_trait]
-impl<I, O> RPCClient for Client<I, O>
+async fn loop_read<I>(
+    server_id: ServerID,
+    mut reader: I,
+    pending_receiver: Receiver<(jsonrpc_core::Id, Sender<jsonrpc_core::Output>)>,
+    sender: Sender<Message>,
+) -> Fallible<()>
 where
-    I: AsyncBufReadExt + Unpin + Send,
-    O: AsyncWrite + Unpin + Send,
+    I: AsyncBufReadExt + Unpin + Send + 'static,
 {
-    async fn reply_success(
-        &self,
-        message_id: &jsonrpc_core::Id,
-        message: serde_json::Value,
-    ) -> Fallible<()> {
-        let msg = jsonrpc_core::Output::Success(jsonrpc_core::Success {
-            jsonrpc: Some(jsonrpc_core::Version::V2),
-            result: serde_json::to_value(message)?,
-            id: message_id.clone(),
-        });
-
-        self.send_raw(msg).await?;
-        Ok(())
-    }
-
-    async fn resolve(
-        &self,
-        message_id: &jsonrpc_core::Id,
-        message: jsonrpc_core::Output,
-    ) -> Fallible<()> {
-        let mut pending_responses = self.pending_responses.try_lock()?;
-        if let Some(tx) = pending_responses.remove(message_id) {
-            tx.send(message)?;
-        }
-        Ok(())
-    }
-
-    async fn read(&self) -> Fallible<Message> {
-        let mut reader = self.reader.try_lock()?;
-
+    let mut pending_outputs = HashMap::new();
+    loop {
         let mut content_length = String::new();
         reader.read_line(&mut content_length).await?;
         let content_length: String = content_length.trim().split(':').skip(1).take(1).collect();
@@ -118,13 +112,49 @@ where
         let mut message = vec![0 as u8; content_length];
         reader.read_exact(&mut message).await?;
         let message = String::from_utf8(message)?;
-        log::error!("{:?} ==> {}\n", self.server_id, message);
+        log::error!("{:?} ==> {}\n", server_id, message);
 
-        let message = serde_json::from_str(message.as_str())?;
+        let message: Message = serde_json::from_str(message.as_str())?;
+        let message_id = message.id();
+        match message {
+            Message::Output(output) => {
+                while let Ok((id, tx)) = pending_receiver.try_recv() {
+                    pending_outputs.insert(id, tx);
+                }
+
+                if let Some(tx) = pending_outputs.remove(&message_id) {
+                    tx.send(output)?;
+                }
+            }
+            _ => {
+                sender.send(message.clone())?;
+            }
+        }
+    }
+}
+
+impl RPCClient for Client {
+    fn reply_success(
+        &self,
+        message_id: &jsonrpc_core::Id,
+        message: serde_json::Value,
+    ) -> Fallible<()> {
+        let message = jsonrpc_core::Output::Success(jsonrpc_core::Success {
+            jsonrpc: Some(jsonrpc_core::Version::V2),
+            result: serde_json::to_value(message)?,
+            id: message_id.clone(),
+        });
+
+        self.writer_tx.send(Message::Output(message))?;
+        Ok(())
+    }
+
+    fn read(&self) -> Fallible<Message> {
+        let message = self.reader_rx.recv()?;
         Ok(message)
     }
 
-    async fn notify<M>(&self, method: &str, message: M) -> Fallible<()>
+    fn notify<M>(&self, method: &str, message: M) -> Fallible<()>
     where
         M: Serialize + Send,
     {
@@ -134,20 +164,17 @@ where
             params: message.to_params()?,
         };
 
-        self.send_raw(message).await?;
+        self.writer_tx.send(Message::Notification(message))?;
         Ok(())
     }
 
-    async fn call<M, R>(&self, method: &str, message: M) -> Fallible<R>
+    fn call<M, R>(&self, method: &str, message: M) -> Fallible<R>
     where
         M: Serialize + std::fmt::Debug + Clone + Send,
         R: DeserializeOwned,
     {
         let (tx, rx) = crossbeam::bounded(1);
-
-        let id_lock = self.id.try_lock()?;
-        let id = id_lock.fetch_add(1, Ordering::SeqCst);
-        drop(id_lock);
+        let id = self.id.fetch_add(1, Ordering::SeqCst);
 
         let message = jsonrpc_core::MethodCall {
             jsonrpc: Some(jsonrpc_core::Version::V2),
@@ -156,11 +183,8 @@ where
             id: jsonrpc_core::Id::Num(id),
         };
 
-        self.send_raw(message).await?;
-
-        let mut pending_responses = self.pending_responses.try_lock()?;
-        pending_responses.insert(jsonrpc_core::Id::Num(id), tx);
-        drop(pending_responses);
+        self.writer_tx.send(Message::MethodCall(message))?;
+        self.pending_tx.send((jsonrpc_core::Id::Num(id), tx))?;
 
         let message = rx.recv()?;
         match message {

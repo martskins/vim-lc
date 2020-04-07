@@ -1,23 +1,16 @@
-use async_trait::async_trait;
 use failure::Fallible;
 use jsonrpc_core::Params;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 
-#[async_trait]
 pub trait RPCClient {
-    async fn read(&self) -> Fallible<Message>;
-    async fn resolve(&self, id: &jsonrpc_core::Id, message: jsonrpc_core::Output) -> Fallible<()>;
-    async fn reply_success(
-        &self,
-        id: &jsonrpc_core::Id,
-        message: serde_json::Value,
-    ) -> Fallible<()>;
-    async fn call<M, R>(&self, method: &str, message: M) -> Fallible<R>
+    fn read(&self) -> Fallible<Message>;
+    fn reply_success(&self, id: &jsonrpc_core::Id, message: serde_json::Value) -> Fallible<()>;
+    fn call<M, R>(&self, method: &str, message: M) -> Fallible<R>
     where
         M: Serialize + std::fmt::Debug + Clone + Send,
         R: DeserializeOwned;
-    async fn notify<M>(&self, method: &str, message: M) -> Fallible<()>
+    fn notify<M>(&self, method: &str, message: M) -> Fallible<()>
     where
         M: Serialize + Send;
 }

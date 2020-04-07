@@ -5,15 +5,15 @@ use crate::rpc::RPCClient;
 use crate::vim::*;
 use crate::LANGUAGE_CLIENT;
 use failure::Fallible;
-use tokio::io::{stdin, stdout, BufReader, Stdin, Stdout};
+use tokio::io::{stdin, stdout, BufReader};
 
 #[derive(Debug)]
 pub struct VLC<T> {
     client: T,
 }
 
-impl VLC<rpc::Client<BufReader<Stdin>, Stdout>> {
-    pub fn new() -> VLC<rpc::Client<BufReader<Stdin>, Stdout>> {
+impl VLC<rpc::Client> {
+    pub fn new() -> VLC<rpc::Client> {
         let client = rpc::Client::new(rpc::ServerID::VIM, BufReader::new(stdin()), stdout());
         Self { client }
     }
@@ -36,82 +36,70 @@ where
 {
     pub async fn run(&self) -> Fallible<()> {
         loop {
-            let message = self.client.read().await?;
+            let message = self.client.read()?;
             if let Err(err) = self.handle_message(message).await {
                 log::error!("{}", err);
             }
         }
     }
 
-    async fn initialize(&self, params: BaseParams) -> Fallible<()> {
-        LANGUAGE_CLIENT.initialize(&params.language_id).await?;
-        LANGUAGE_CLIENT.initialized(&params.language_id).await?;
+    fn initialize(&self, params: BaseParams) -> Fallible<()> {
+        LANGUAGE_CLIENT.initialize(&params.language_id)?;
+        LANGUAGE_CLIENT.initialized(&params.language_id)?;
         Ok(())
     }
 
-    async fn exit(&self, params: BaseParams) -> Fallible<()> {
-        LANGUAGE_CLIENT.exit(&params.language_id).await?;
+    fn exit(&self, params: BaseParams) -> Fallible<()> {
+        LANGUAGE_CLIENT.exit(&params.language_id)?;
         Ok(())
     }
 
-    async fn shutdown(&self, params: BaseParams) -> Fallible<()> {
-        LANGUAGE_CLIENT.shutdown(&params.language_id).await?;
+    fn shutdown(&self, params: BaseParams) -> Fallible<()> {
+        LANGUAGE_CLIENT.shutdown(&params.language_id)?;
         Ok(())
     }
 
-    async fn rename(&self, params: RenameParams) -> Fallible<()> {
+    fn rename(&self, params: RenameParams) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        let response = LANGUAGE_CLIENT
-            .text_document_rename(&language_id, params)
-            .await?;
+        let response = LANGUAGE_CLIENT.text_document_rename(&language_id, params)?;
         if response.is_none() {
             return Ok(());
         }
 
-        self.apply_edits(response.unwrap()).await?;
+        self.apply_edits(response.unwrap())?;
         Ok(())
     }
 
     async fn did_open(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        LANGUAGE_CLIENT
-            .text_document_did_open(&language_id, params.clone())
-            .await?;
+        LANGUAGE_CLIENT.text_document_did_open(&language_id, params.clone())?;
         self.code_lens(params.into()).await?;
         Ok(())
     }
 
     async fn did_save(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        LANGUAGE_CLIENT
-            .text_document_did_save(&language_id, params.clone())
-            .await?;
+        LANGUAGE_CLIENT.text_document_did_save(&language_id, params.clone())?;
         self.code_lens(params.into()).await?;
         Ok(())
     }
 
-    async fn did_close(&self, params: TextDocumentContent) -> Fallible<()> {
+    fn did_close(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        LANGUAGE_CLIENT
-            .text_document_did_close(&language_id, params)
-            .await?;
+        LANGUAGE_CLIENT.text_document_did_close(&language_id, params)?;
         Ok(())
     }
 
     async fn did_change(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        LANGUAGE_CLIENT
-            .text_document_did_change(&language_id, params.clone())
-            .await?;
+        LANGUAGE_CLIENT.text_document_did_change(&language_id, params.clone())?;
         self.code_lens(params.into()).await?;
         Ok(())
     }
 
-    async fn implementation(&self, params: TextDocumentPosition) -> Fallible<()> {
+    fn implementation(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        let response = LANGUAGE_CLIENT
-            .text_document_implementation(&language_id, params)
-            .await?;
+        let response = LANGUAGE_CLIENT.text_document_implementation(&language_id, params)?;
         if response.is_none() {
             return Ok(());
         }
@@ -119,39 +107,35 @@ where
         let vim = super::VIM.clone();
         match response.unwrap() {
             lsp_types::request::GotoDefinitionResponse::Scalar(l) => {
-                vim.jump_to_location(l.into()).await?
+                vim.jump_to_location(l.into())?
             }
             lsp_types::request::GotoDefinitionResponse::Array(ll) => {
                 let locations = ll.into_iter().map(|l| l.into()).collect();
-                vim.show_locations(locations).await?
+                vim.show_locations(locations)?
             }
             lsp_types::request::GotoDefinitionResponse::Link(ll) => {
                 let locations = ll.into_iter().map(|l| l.into()).collect();
-                vim.show_locations(locations).await?
+                vim.show_locations(locations)?
             }
         }
 
         Ok(())
     }
 
-    async fn hover(&self, params: TextDocumentPosition) -> Fallible<()> {
+    fn hover(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        let response = LANGUAGE_CLIENT
-            .text_document_hover(&language_id, params)
-            .await?;
+        let response = LANGUAGE_CLIENT.text_document_hover(&language_id, params)?;
         if response.is_none() {
             return Ok(());
         }
 
-        self.show_hover(response.unwrap()).await?;
+        self.show_hover(response.unwrap())?;
         Ok(())
     }
 
-    async fn references(&self, params: TextDocumentPosition) -> Fallible<()> {
+    fn references(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        let response = LANGUAGE_CLIENT
-            .text_document_references(&language_id, params)
-            .await?;
+        let response = LANGUAGE_CLIENT.text_document_references(&language_id, params)?;
         if response.is_none() {
             return Ok(());
         }
@@ -160,12 +144,11 @@ where
         let response = response.unwrap();
         match response.len() {
             1 => {
-                vim.jump_to_location(response.first().cloned().unwrap().into())
-                    .await?;
+                vim.jump_to_location(response.first().cloned().unwrap().into())?;
             }
             _ => {
                 let locations = response.into_iter().map(|l| l.into()).collect();
-                vim.show_locations(locations).await?;
+                vim.show_locations(locations)?;
             }
         }
 
@@ -197,19 +180,17 @@ where
             .collect();
 
         let client = self.client.clone();
-        client.notify("setVirtualTexts", virtual_texts).await?;
+        client.notify("setVirtualTexts", virtual_texts)?;
         Ok(())
     }
 
-    async fn completion(
+    fn completion(
         &self,
         message_id: &jsonrpc_core::Id,
         params: TextDocumentPosition,
     ) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        let response = LANGUAGE_CLIENT
-            .text_document_completion(&language_id, params)
-            .await?;
+        let response = LANGUAGE_CLIENT.text_document_completion(&language_id, params)?;
         if response.is_none() {
             return Ok(());
         }
@@ -236,18 +217,14 @@ where
 
         let list = CompletionList { words: list };
         let client = self.client.clone();
-        client
-            .reply_success(&message_id, serde_json::to_value(&list)?)
-            .await?;
+        client.reply_success(&message_id, serde_json::to_value(&list)?)?;
 
         Ok(())
     }
 
-    async fn definition(&self, params: TextDocumentPosition) -> Fallible<()> {
+    fn definition(&self, params: TextDocumentPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        let response = LANGUAGE_CLIENT
-            .text_document_definition(&language_id, params.into())
-            .await?;
+        let response = LANGUAGE_CLIENT.text_document_definition(&language_id, params.into())?;
         if response.is_none() {
             return Ok(());
         }
@@ -255,15 +232,15 @@ where
         let vim = super::VIM.clone();
         match response.unwrap() {
             lsp_types::request::GotoDefinitionResponse::Scalar(l) => {
-                vim.jump_to_location(l.into()).await?
+                vim.jump_to_location(l.into())?
             }
             lsp_types::request::GotoDefinitionResponse::Array(ll) => {
                 let locations = ll.into_iter().map(|l| l.into()).collect();
-                vim.show_locations(locations).await?
+                vim.show_locations(locations)?
             }
             lsp_types::request::GotoDefinitionResponse::Link(ll) => {
                 let locations = ll.into_iter().map(|l| l.into()).collect();
-                vim.show_locations(locations).await?
+                vim.show_locations(locations)?
             }
         }
 
@@ -277,26 +254,23 @@ where
             rpc::Message::MethodCall(msg) => match msg.method.as_str() {
                 "start" => {
                     let params: BaseParams = serde_json::from_value(msg.params.into())?;
-                    LANGUAGE_CLIENT
-                        .clone()
-                        .start_server(&params.language_id)
-                        .await?;
+                    LANGUAGE_CLIENT.clone().start_server(&params.language_id)?;
                 }
                 "initialize" => {
                     let params: BaseParams = serde_json::from_value(msg.params.into())?;
-                    self.initialize(params).await?;
+                    self.initialize(params)?;
                 }
                 "shutdown" => {
                     let params: BaseParams = serde_json::from_value(msg.params.into())?;
-                    self.shutdown(params).await?;
+                    self.shutdown(params)?;
                 }
                 "exit" => {
                     let params: BaseParams = serde_json::from_value(msg.params.into())?;
-                    self.shutdown(params).await?;
+                    self.shutdown(params)?;
                 }
                 "textDocument/completion" => {
                     let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
-                    self.completion(&message_id, params).await?;
+                    self.completion(&message_id, params)?;
                 }
                 "textDocument/codeLens" => {
                     let params: TextDocumentIdentifier = serde_json::from_value(msg.params.into())?;
@@ -304,23 +278,25 @@ where
                 }
                 "textDocument/definition" => {
                     let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
-                    self.definition(params).await?;
+                    self.definition(params)?;
                 }
                 "textDocument/hover" => {
                     let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
-                    self.hover(params).await?;
+                    self.hover(params)?;
                 }
                 "textDocument/references" => {
                     let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
-                    self.references(params).await?;
+                    self.references(params)?;
                 }
                 "textDocument/rename" => {
-                    let params: RenameParams = serde_json::from_value(msg.params.into())?;
-                    self.rename(params).await?;
+                    let params: RenameParams = serde_json::from_value(msg.params.into()).unwrap();
+                    if let Err(err) = self.rename(params) {
+                        log::error!("{}", err);
+                    }
                 }
                 "textDocument/implementation" => {
                     let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
-                    self.implementation(params).await?;
+                    self.implementation(params)?;
                 }
                 _ => log::debug!("unhandled method call {}", msg.method),
             },
@@ -335,7 +311,7 @@ where
                 }
                 "textDocument/didClose" => {
                     let params: TextDocumentContent = serde_json::from_value(msg.params.into())?;
-                    self.did_close(params).await?;
+                    self.did_close(params)?;
                 }
                 "textDocument/didChange" => {
                     let params: TextDocumentContent = serde_json::from_value(msg.params.into())?;
@@ -343,9 +319,7 @@ where
                 }
                 _ => log::debug!("unhandled notification {}", msg.method),
             },
-            rpc::Message::Output(msg) => {
-                self.clone().client.resolve(&message_id, msg).await?;
-            }
+            rpc::Message::Output(_) => unreachable!(),
         }
 
         Ok(())

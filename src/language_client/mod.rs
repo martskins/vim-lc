@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::Arc;
 use tokio::io::BufReader;
-use tokio::process::{Child, ChildStdin, ChildStdout, Command};
+use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 
 #[derive(Debug)]
@@ -34,9 +34,9 @@ where
     }
 }
 
-impl LanguageClient<rpc::Client<BufReader<ChildStdout>, ChildStdin>> {
+impl LanguageClient<rpc::Client> {
     /// runs the binary specified in the config file for the given language_id
-    pub async fn start_server(&mut self, language_id: &str) -> Fallible<()> {
+    pub fn start_server(&mut self, language_id: &str) -> Fallible<()> {
         let binpath = CONFIG.servers.get(language_id);
         if binpath.is_none() {
             return Ok(());
@@ -80,10 +80,9 @@ where
 
         let lc = self.clone();
         tokio::spawn(async move {
-            let language_id = language_id.clone();
             loop {
-                let message = client.read().await.unwrap();
-                if let Err(err) = lc.handle_message(language_id.as_str(), message).await {
+                let message = client.read().unwrap();
+                if let Err(err) = lc.handle_message(message).await {
                     log::error!("{}", err);
                 }
             }
@@ -102,8 +101,7 @@ where
     }
 
     /// handles messages sent from vim to the language client
-    async fn handle_message(&self, language_id: &str, message: rpc::Message) -> Fallible<()> {
-        let message_id = message.id();
+    async fn handle_message(&self, message: rpc::Message) -> Fallible<()> {
         match message {
             rpc::Message::MethodCall(msg) => match msg.method.as_str() {
                 _ => log::debug!("unhandled method call {}", msg.method),
@@ -112,47 +110,44 @@ where
                 "window/logMessage" => {
                     let params: lsp_types::LogMessageParams =
                         serde_json::from_value(msg.params.into())?;
-                    VIM.log_message(params).await?;
+                    VIM.log_message(params)?;
                 }
                 "textDocument/publishDiagnostics" => {
                     let params: lsp_types::PublishDiagnosticsParams =
                         serde_json::from_value(msg.params.into())?;
-                    self.text_document_publish_diagnostics(params).await?;
+                    self.text_document_publish_diagnostics(params)?;
                 }
                 "$/progress" => {
                     let params: lsp_types::ProgressParams =
                         serde_json::from_value(msg.params.into())?;
-                    self.progress(params).await?;
+                    self.progress(params)?;
                 }
                 "window/showMessage" => {
                     let params: lsp_types::ShowMessageParams =
                         serde_json::from_value(msg.params.into())?;
-                    self.window_show_message(params).await?;
+                    self.window_show_message(params)?;
                 }
                 _ => log::debug!("unhandled notification {}", msg.method),
             },
-            rpc::Message::Output(o) => {
-                let client = self.get_client(language_id)?;
-                client.resolve(&message_id, o.clone()).await?;
-            }
+            rpc::Message::Output(_) => unreachable!(),
         }
 
         Ok(())
     }
 
-    pub async fn text_document_hover(
+    pub fn text_document_hover(
         &self,
         language_id: &str,
         input: super::vim::TextDocumentPosition,
     ) -> Fallible<Option<Hover>> {
         let input: TextDocumentPositionParams = input.into();
         let client = self.get_client(language_id)?;
-        let response: Option<Hover> = client.call(request::HoverRequest::METHOD, input).await?;
+        let response: Option<Hover> = client.call(request::HoverRequest::METHOD, input)?;
 
         Ok(response)
     }
 
-    pub async fn text_document_publish_diagnostics(
+    pub fn text_document_publish_diagnostics(
         &self,
         input: PublishDiagnosticsParams,
     ) -> Fallible<()> {
@@ -173,18 +168,18 @@ where
             })
             .collect();
 
-        VIM.show_diagnostics(diagnostics).await?;
+        VIM.show_diagnostics(diagnostics)?;
         Ok(())
     }
 
-    pub async fn window_show_message(&self, input: ShowMessageParams) -> Fallible<()> {
+    pub fn window_show_message(&self, input: ShowMessageParams) -> Fallible<()> {
         let message = input.message;
-        VIM.show_message(vim::Message { message, level: 3 }).await?;
+        VIM.show_message(vim::Message { message, level: 3 })?;
 
         Ok(())
     }
 
-    pub async fn progress(&self, params: lsp_types::ProgressParams) -> Fallible<()> {
+    pub fn progress(&self, params: lsp_types::ProgressParams) -> Fallible<()> {
         let message = match params.value {
             ProgressParamsValue::WorkDone(wd) => match wd {
                 WorkDoneProgress::Begin(r) => {
@@ -204,11 +199,11 @@ where
             level: 3,
         };
 
-        VIM.show_message(message).await?;
+        VIM.show_message(message)?;
         Ok(())
     }
 
-    pub async fn initialize(&self, language_id: &str) -> Fallible<()> {
+    pub fn initialize(&self, language_id: &str) -> Fallible<()> {
         let client = self.get_client(language_id)?;
         let message = InitializeParams {
             // TODO: set the process id
@@ -225,7 +220,7 @@ where
             }),
         };
 
-        let res: InitializeResult = client.call(request::Initialize::METHOD, message).await?;
+        let res: InitializeResult = client.call(request::Initialize::METHOD, message)?;
 
         let mut state = self.state.try_lock()?;
         state
@@ -235,40 +230,37 @@ where
         Ok(())
     }
 
-    pub async fn shutdown(&self, language_id: &str) -> Fallible<()> {
+    pub fn shutdown(&self, language_id: &str) -> Fallible<()> {
         let client = self.get_client(language_id)?;
-        client.call(request::Shutdown::METHOD, ()).await?;
+        client.call(request::Shutdown::METHOD, ())?;
         Ok(())
     }
 
-    pub async fn exit(&self, language_id: &str) -> Fallible<()> {
+    pub fn exit(&self, language_id: &str) -> Fallible<()> {
         let client = self.get_client(language_id)?;
-        client.notify(notification::Exit::METHOD, ()).await?;
+        client.notify(notification::Exit::METHOD, ())?;
         Ok(())
     }
 
-    pub async fn initialized(&self, language_id: &str) -> Fallible<()> {
+    pub fn initialized(&self, language_id: &str) -> Fallible<()> {
         let client = self.get_client(language_id)?;
-        client
-            .notify(notification::Initialized::METHOD, InitializedParams {})
-            .await?;
+        client.notify(notification::Initialized::METHOD, InitializedParams {})?;
         Ok(())
     }
 
-    pub async fn text_document_implementation(
+    pub fn text_document_implementation(
         &self,
         language_id: &str,
         input: super::vim::TextDocumentPosition,
     ) -> Fallible<Option<request::GotoImplementationResponse>> {
         let input: TextDocumentPositionParams = input.into();
         let client = self.get_client(language_id)?;
-        let message: Option<request::GotoImplementationResponse> = client
-            .call(request::GotoImplementation::METHOD, input)
-            .await?;
+        let message: Option<request::GotoImplementationResponse> =
+            client.call(request::GotoImplementation::METHOD, input)?;
         Ok(message)
     }
 
-    pub async fn text_document_references(
+    pub fn text_document_references(
         &self,
         language_id: &str,
         input: super::vim::TextDocumentPosition,
@@ -276,11 +268,11 @@ where
         let input: TextDocumentPositionParams = input.into();
         let client = self.get_client(language_id)?;
         let message: Option<Vec<lsp_types::Location>> =
-            client.call(request::References::METHOD, input).await?;
+            client.call(request::References::METHOD, input)?;
         Ok(message)
     }
 
-    pub async fn text_document_definition(
+    pub fn text_document_definition(
         &self,
         language_id: &str,
         params: TextDocumentPositionParams,
@@ -288,11 +280,11 @@ where
         let input: TextDocumentPositionParams = params;
         let client = self.get_client(language_id)?;
         let message: Option<request::GotoDefinitionResponse> =
-            client.call(request::GotoDefinition::METHOD, input).await?;
+            client.call(request::GotoDefinition::METHOD, input)?;
         Ok(message)
     }
 
-    pub async fn text_document_did_save(
+    pub fn text_document_did_save(
         &self,
         language_id: &str,
         input: super::vim::TextDocumentContent,
@@ -304,12 +296,10 @@ where
         };
 
         let client = LANGUAGE_CLIENT.get_client(language_id)?;
-        client
-            .notify(notification::DidSaveTextDocument::METHOD, input)
-            .await
+        client.notify(notification::DidSaveTextDocument::METHOD, input)
     }
 
-    pub async fn text_document_did_close(
+    pub fn text_document_did_close(
         &self,
         language_id: &str,
         input: super::vim::TextDocumentContent,
@@ -325,12 +315,10 @@ where
         };
 
         let client = LANGUAGE_CLIENT.get_client(language_id)?;
-        client
-            .notify(notification::DidCloseTextDocument::METHOD, input)
-            .await
+        client.notify(notification::DidCloseTextDocument::METHOD, input)
     }
 
-    pub async fn text_document_did_change(
+    pub fn text_document_did_change(
         &self,
         language_id: &str,
         input: super::vim::TextDocumentContent,
@@ -357,12 +345,10 @@ where
         };
 
         let client = LANGUAGE_CLIENT.get_client(language_id)?;
-        client
-            .notify(notification::DidChangeTextDocument::METHOD, input)
-            .await
+        client.notify(notification::DidChangeTextDocument::METHOD, input)
     }
 
-    pub async fn text_document_rename(
+    pub fn text_document_rename(
         &self,
         language_id: &str,
         input: super::vim::RenameParams,
@@ -374,11 +360,11 @@ where
         };
 
         let client = LANGUAGE_CLIENT.get_client(language_id)?;
-        let response: Option<WorkspaceEdit> = client.call(request::Rename::METHOD, params).await?;
+        let response: Option<WorkspaceEdit> = client.call(request::Rename::METHOD, params)?;
         Ok(response)
     }
 
-    pub async fn text_document_did_open(
+    pub fn text_document_did_open(
         &self,
         language_id: &str,
         input: super::vim::TextDocumentContent,
@@ -402,9 +388,7 @@ where
         };
 
         let client = LANGUAGE_CLIENT.get_client(language_id)?;
-        client
-            .notify(notification::DidOpenTextDocument::METHOD, input)
-            .await
+        client.notify(notification::DidOpenTextDocument::METHOD, input)
     }
 
     pub async fn text_document_code_lens(
@@ -422,7 +406,7 @@ where
 
         let client = LANGUAGE_CLIENT.get_client(language_id)?;
         let response: Option<Vec<CodeLens>> =
-            client.call(request::CodeLensRequest::METHOD, input).await?;
+            client.call(request::CodeLensRequest::METHOD, input)?;
         let response = response.unwrap_or_default();
         if response.is_empty() {
             return Ok(vec![]);
@@ -463,7 +447,7 @@ where
                         return cl;
                     }
 
-                    lc.code_lens_resolve(&language_id, &cl).await.unwrap_or(cl)
+                    lc.code_lens_resolve(&language_id, &cl).unwrap_or(cl)
                 })
             })
             .collect();
@@ -477,19 +461,13 @@ where
         Ok(res)
     }
 
-    pub async fn code_lens_resolve(
-        &self,
-        language_id: &str,
-        code_lens: &CodeLens,
-    ) -> Fallible<CodeLens> {
+    pub fn code_lens_resolve(&self, language_id: &str, code_lens: &CodeLens) -> Fallible<CodeLens> {
         let client = self.get_client(language_id)?;
-        let result: CodeLens = client
-            .call(request::CodeLensResolve::METHOD, code_lens)
-            .await?;
+        let result: CodeLens = client.call(request::CodeLensResolve::METHOD, code_lens)?;
         Ok(result)
     }
 
-    pub async fn text_document_completion(
+    pub fn text_document_completion(
         &self,
         language_id: &str,
         input: super::vim::TextDocumentPosition,
@@ -502,7 +480,7 @@ where
         };
 
         let client = LANGUAGE_CLIENT.get_client(language_id)?;
-        let message = client.call(request::Completion::METHOD, input).await?;
+        let message = client.call(request::Completion::METHOD, input)?;
 
         Ok(message)
     }
