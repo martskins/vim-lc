@@ -5,11 +5,16 @@ use crate::rpc::RPCClient;
 use crate::vim::*;
 use crate::LANGUAGE_CLIENT;
 use failure::Fallible;
-use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 
 #[derive(Debug)]
 pub struct VLC<T> {
     client: T,
+}
+
+impl<T> VLC<T> {
+    pub fn new(client: T) -> VLC<T> {
+        Self { client }
+    }
 }
 
 impl<T> Clone for VLC<T>
@@ -27,24 +32,8 @@ impl<T> VLC<T>
 where
     T: RPCClient + Clone + Unpin + Sync + Send + 'static,
 {
-    pub fn new(client: T) -> VLC<T> {
-        // let client = rpc::Client::new(rpc::ServerID::VIM, BufReader::new(reader), writer);
-        Self { client }
-    }
-
     pub async fn run(&self) -> Fallible<()> {
-        let vlc = self.clone();
-        tokio::spawn(async move {
-            vlc.loop_read().await.unwrap();
-        });
         loop {
-            std::thread::sleep(std::time::Duration::from_millis(400));
-        }
-    }
-
-    async fn loop_read(&self) -> Fallible<()> {
-        loop {
-            log::error!("READ");
             let message = self.client.read().await?;
             if let Err(err) = self.handle_message(message).await {
                 log::error!("{}", err);
