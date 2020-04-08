@@ -6,4 +6,5 @@ pub struct State {
     // contains file uris as a key and a tuple of (Version, Text) as a value.
     pub text_documents: HashMap<String, (u64, Vec<String>)>,
     pub server_capabilities: HashMap<String, lsp_types::ServerCapabilities>,
+    pub code_actions: Vec<lsp_types::CodeActionOrCommand>,
 }

@@ -42,6 +42,15 @@ function! lsp#shutdown() abort
   call rpc#call('shutdown', v:null)
 endfunction
 
+function! lsp#codeAction() abort
+  if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
+    return 0
+  endif
+
+  let l:params = extend(s:SelectionRange(), { 'text_document': expand('%:p') })
+  return rpc#call('textDocument/codeAction', l:params)
+endfunction
+
 function! lsp#rename(new_name) abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
@@ -93,6 +102,27 @@ function! lsp#completion(...) abort
 endfunction
 
 "{{{ PRIVATE FUNCTIONS
+function! s:SelectionRange(...) abort
+  let l:mode = mode()
+
+  if l:mode ==# 'v'
+    let [line_start, column_start] = getpos("'<")[1:2]
+    let [line_end, column_end] = getpos("'>")[1:2]
+
+    return { 'range': {
+          \ 'start': { 'line': line_start, 'column': column_start },
+          \ 'end': { 'line': line_end, 'column': column_end },
+          \ }}
+  endif
+
+  let l:line = line('.')
+  let l:col = col('.')
+  return { 'range': {
+        \ 'start': { 'line': l:line, 'column': l:col },
+        \ 'end': { 'line': l:line, 'column': l:col },
+        \ }}
+endfunction
+
 function! s:Position(...) abort
   let l:line = line('.')
   let l:col = col('.')

@@ -26,6 +26,10 @@ function! vlc#rename() abort
   call lsp#rename(l:new_name)
 endfunction
 
+function! vlc#codeAction() abort
+  call lsp#codeAction()
+endfunction
+
 function! vlc#implementation() abort
   call lsp#implementation()
 endfunction

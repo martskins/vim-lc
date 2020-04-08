@@ -27,6 +27,8 @@ pub struct FeatureFlags {
     pub hover: bool,
     pub diagnostics: bool,
     pub rename: bool,
+    pub did_close: bool,
+    pub did_open: bool,
 }
 
 impl Default for FeatureFlags {
@@ -42,6 +44,8 @@ impl Default for FeatureFlags {
             hover: true,
             diagnostics: true,
             rename: true,
+            did_close: true,
+            did_open: true,
         }
     }
 }

@@ -34,7 +34,7 @@
 - [x] textDocument/references
 - [ ] textDocument/documentHighlight
 - [ ] textDocument/documentSymbol
-- [ ] textDocument/codeAction
+- [x] textDocument/codeAction
 - [x] textDocument/codeLens
 - [x] codeLens/resolve
 - [ ] textDocument/documentLink

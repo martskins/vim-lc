@@ -44,11 +44,16 @@ endfunction
 
 function! vim#applyChanges(changes) abort
   execute 'edit' a:changes['text_document']
-  for change in a:changes['edits']
-    for line in change['lines']
-      let l:lnum = line['line']
-      call setline(l:lnum, line['text'])
-    endfor
+  for change in a:changes['changes']
+    let l:start = change['start']['line'] + 1
+    let l:end = change['end']['line'] + 1
+    execute l:start . ',' . l:end . 'd'
+    let l:pos = getcurpos()
+    let l:cursorline = l:pos[1] - 1
+    let l:cursorcol = l:pos[2]
+    call cursor(l:cursorline, l:cursorcol)
+    echom change['lines'][0]
+    call append(line('.'), change['lines'])
   endfor
   execute ':w'
 endfunction
@@ -123,3 +128,32 @@ function! vim#showPreview(params)
       call setbufline(l:name, 1, l:lines)
   endif
 endfunction
+
+function! vim#showFZF(items, sink)
+  call fzf#run(fzf#wrap({ 'source': a:items, 'sink': function(a:sink)}))
+endfunction
+
+" selection is a string with the following pattern:
+"   {filename}:{line_number} \t{preview}
+function! s:fzfLocationSink(selection) abort
+  let l:parts = split(a:selection, ':')
+  let l:filename = l:parts[0]
+  let l:line = split(l:parts[1], '\t')[0]
+
+  execute 'edit' l:filename
+  call cursor(l:line, 0)
+endfunction
+
+function! s:resolveCodeAction(selection) abort
+  let l:line = line('.')
+  let l:col = col('.')
+  let l:path = expand('%:p')
+  let l:params = {
+        \'selection': a:selection,
+        \'text_document': l:path,
+        \'line': l:line,
+        \'column': l:col
+        \}
+  call rpc#call('resolveCodeAction', l:params)
+endfunction
+

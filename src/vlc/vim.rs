@@ -5,92 +5,73 @@ use crate::LANGUAGE_CLIENT;
 use crate::VIM;
 use failure::Fallible;
 
+use futures::executor::block_on;
 impl<T> VLC<T>
 where
     T: RPCClient,
 {
     pub fn apply_edits(&self, edits: lsp_types::WorkspaceEdit) -> Fallible<()> {
-        let changes = self.text_document_changes(edits)?;
-        self.client.notify("applyEdits", changes)?;
-        Ok(())
-    }
-
-    async fn text_document_edits(
-        &self,
-        filename: &str,
-        edits: lsp_types::TextDocumentEdit,
-    ) -> Fallible<Vec<Lines>> {
-        let tasks: Vec<_> = edits
-            .edits
-            .into_iter()
-            .map(|e| self.text_document_edit(filename, e))
-            .collect();
-
-        let out = futures::future::join_all(tasks)
-            .await
-            .into_iter()
-            .filter(Result::is_ok)
-            .map(|c| c.unwrap())
-            .collect();
-        Ok(out)
-    }
-
-    async fn text_document_edit(
-        &self,
-        filename: &str,
-        edit: lsp_types::TextEdit,
-    ) -> Fallible<Lines> {
-        let mut line: String = LANGUAGE_CLIENT
-            .get_line(filename, edit.range.start.line + 1)
-            .await?;
-
-        let start = edit.range.start.character as usize;
-        let end = edit.range.end.character as usize;
-        line.replace_range(start..end, &edit.new_text);
-
-        let lines = vec![Line {
-            line: edit.range.start.line + 1,
-            text: line,
-        }];
-
-        Ok(Lines { lines })
-    }
-
-    async fn text_document_change_from_edit(
-        &self,
-        edit: lsp_types::TextDocumentEdit,
-    ) -> Fallible<TextDocumentChanges> {
-        let text_document = edit
-            .text_document
-            .uri
-            .to_string()
-            .replace(self.root_path.as_str(), "");
-        Ok(TextDocumentChanges {
-            text_document: text_document.clone(),
-            edits: self.text_document_edits(&text_document, edit).await?,
-        })
-    }
-
-    fn text_document_changes(
-        &self,
-        f: lsp_types::WorkspaceEdit,
-    ) -> Fallible<Vec<TextDocumentChanges>> {
-        let document_changes = f
-            .document_changes
-            .unwrap_or_else(|| lsp_types::DocumentChanges::Edits(vec![]));
-
-        use futures::executor::block_on;
-        let changes = match document_changes {
+        // TODO: This is terrible, fix it some day.
+        let changes: lsp_types::DocumentChanges = edits.document_changes.unwrap();
+        let changes: Vec<DocumentChanges> = match changes {
             lsp_types::DocumentChanges::Edits(edits) => edits
                 .into_iter()
-                .map(|v| block_on(self.text_document_change_from_edit(v)))
-                .filter(Result::is_ok)
-                .map(|c| c.unwrap())
-                .collect(),
-            lsp_types::DocumentChanges::Operations(operations) => vec![],
-        };
+                .map(|tde| {
+                    let tde: lsp_types::TextDocumentEdit = tde;
+                    let text_document = tde
+                        .text_document
+                        .uri
+                        .to_string()
+                        .replace(self.root_path.as_str(), "");
+                    DocumentChanges {
+                        text_document: text_document.clone(),
+                        changes: tde
+                            .edits
+                            .into_iter()
+                            .map(|e| {
+                                let mut lines: Vec<String> =
+                                    e.new_text.split('\n').map(|s| s.to_owned()).collect();
+                                let line_count = lines.len();
+                                let mut first_line = block_on(
+                                    LANGUAGE_CLIENT
+                                        .get_line(&text_document, e.range.start.line + 1),
+                                )
+                                .unwrap();
+                                first_line.replace_range(
+                                    e.range.start.character as usize..first_line.len(),
+                                    &lines[0],
+                                );
+                                lines[0] = first_line;
 
-        Ok(changes)
+                                let mut last_line = block_on(
+                                    LANGUAGE_CLIENT.get_line(&text_document, e.range.end.line + 1),
+                                )
+                                .unwrap();
+                                last_line.replace_range(
+                                    0..e.range.end.character as usize,
+                                    &lines[line_count - 1],
+                                );
+                                lines[line_count - 1] = last_line;
+                                BufChanges {
+                                    start: Position {
+                                        line: e.range.start.line,
+                                        column: e.range.start.character,
+                                    },
+                                    end: Position {
+                                        line: e.range.end.line,
+                                        column: e.range.end.character,
+                                    },
+                                    lines,
+                                }
+                            })
+                            .collect(),
+                    }
+                })
+                .collect(),
+            lsp_types::DocumentChanges::Operations(_) => vec![],
+        };
+        self.client.notify("applyEdits", changes)?;
+        Ok(())
     }
 
     pub fn show_diagnostics(&self, mut diagnostics: Vec<Diagnostic>) -> Fallible<()> {
@@ -153,9 +134,16 @@ where
         Ok(())
     }
 
-    pub fn show_locations(&self, input: Vec<Location>) -> Fallible<()> {
-        use futures::executor::block_on;
+    pub fn show_in_fzf<I: FZFItem>(&self, items: Vec<I>) -> Fallible<()> {
+        let text: Vec<String> = items.into_iter().map(|i| i.text()).collect();
+        let sink = I::sink();
+        self.client
+            .notify("showFZF", serde_json::json!({"items": text, "sink": sink}))?;
 
+        Ok(())
+    }
+
+    pub fn show_locations(&self, input: Vec<Location>) -> Fallible<()> {
         if input.is_empty() {
             return Ok(());
         }
@@ -164,26 +152,23 @@ where
             return self.jump_to_location(input.first().cloned().unwrap());
         }
 
-        let list = input
+        let locations: Vec<LocationWithPreview> = input
             .into_iter()
             .map(|l| {
                 let filename = l.filename.replace(self.root_path.as_str(), "");
-                // TODO: parallelize these calls
-                let text = block_on(LANGUAGE_CLIENT.get_line(filename.as_str(), l.position.line))
+                let text = block_on(LANGUAGE_CLIENT.get_line(&filename, l.position.line))
                     .unwrap_or_default();
-
-                QuickfixItem {
-                    bufnr: 0,
-                    filename: l.filename.replace(self.root_path.as_str(), ""),
-                    line: l.position.line,
-                    column: l.position.column,
-                    text,
-                    kind: 'W',
+                LocationWithPreview {
+                    preview: text,
+                    location: Location {
+                        filename,
+                        position: l.position,
+                    },
                 }
             })
             .collect();
 
-        self.set_quickfix(list)?;
+        self.show_in_fzf(locations)?;
         Ok(())
     }
 

@@ -1,3 +1,5 @@
+mod extensions;
+
 use crate::rpc;
 use crate::rpc::RPCClient;
 use crate::state::State;
@@ -14,7 +16,7 @@ use std::process::Stdio;
 use std::sync::Arc;
 use tokio::io::BufReader;
 use tokio::process::{Child, Command};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 
 #[derive(Debug)]
 pub struct LanguageClient<T> {
@@ -36,7 +38,7 @@ where
 
 impl LanguageClient<rpc::Client> {
     /// runs the binary specified in the config file for the given language_id
-    pub async fn start_server(&mut self, language_id: &str) -> Fallible<()> {
+    pub async fn start_server(&self, language_id: &str) -> Fallible<()> {
         let binpath = CONFIG.servers.get(language_id);
         if binpath.is_none() {
             return Ok(());
@@ -204,7 +206,10 @@ where
 
     pub fn window_show_message(&self, input: ShowMessageParams) -> Fallible<()> {
         let message = input.message;
-        VIM.show_message(vim::Message { message, level: 3 })?;
+        VIM.show_message(vim::Message {
+            message,
+            level: vim::LogLevel::Info,
+        })?;
 
         Ok(())
     }
@@ -226,7 +231,7 @@ where
 
         let message = vim::Message {
             message: message.unwrap(),
-            level: 3,
+            level: vim::LogLevel::Info,
         };
 
         VIM.show_message(message)?;
@@ -303,7 +308,7 @@ where
             return Ok(None);
         }
 
-        let input: TextDocumentPositionParams = input.into();
+        let input: ReferenceParams = input.into();
         let client = self.get_client(language_id).await?;
         let message: Option<Vec<lsp_types::Location>> =
             client.call(request::References::METHOD, input)?;
@@ -346,8 +351,11 @@ where
         language_id: &str,
         input: vim::TextDocumentContent,
     ) -> Fallible<()> {
-        let state = self.state.clone();
-        let mut state = state.write().await;
+        if !CONFIG.features.did_close {
+            return Ok(());
+        }
+
+        let mut state = self.state.write().await;
         state.text_documents.remove(&input.text_document);
 
         let input = DidCloseTextDocumentParams {
@@ -415,6 +423,10 @@ where
         language_id: &str,
         input: vim::TextDocumentContent,
     ) -> Fallible<()> {
+        if !CONFIG.features.did_open {
+            return Ok(());
+        }
+
         let state = self.state.clone();
         let mut state = state.write().await;
         let mut version = state.text_documents.get(&input.text_document).cloned();
@@ -441,12 +453,73 @@ where
         client.notify(notification::DidOpenTextDocument::METHOD, input)
     }
 
+    pub async fn resolve_code_action(&self, input: vim::ResolveCodeActionParams) -> Fallible<()> {
+        let state = self.state.read().await;
+        let code_actions = state.code_actions.clone();
+        drop(state);
+
+        for ca in code_actions {
+            match ca {
+                CodeActionOrCommand::CodeAction(action) if action.title == input.selection => {
+                    let action: CodeAction = action;
+                    if action.command.is_none() {
+                        log::error!("action has no command: {:?}", action);
+                        return Ok(());
+                    }
+
+                    self.run_command(action.command.unwrap()).await?;
+                }
+                CodeActionOrCommand::Command(command) if command.title == input.selection => {
+                    log::error!("COMMAND: {:?}", command.title);
+                }
+                _ => {}
+            }
+        }
+
+        let mut state = self.state.write().await;
+        state.code_actions = vec![];
+
+        Ok(())
+    }
+
     pub async fn text_document_code_action(
         &self,
         language_id: &str,
-        input: vim::TextDocumentIdentifier,
-    ) -> Fallible<Vec<CodeAction>> {
-        panic!("");
+        input: vim::SelectionRange,
+    ) -> Fallible<Vec<CodeActionOrCommand>> {
+        if !CONFIG.features.code_action {
+            return Ok(vec![]);
+        }
+
+        let params = CodeActionParams {
+            text_document: TextDocumentIdentifier {
+                uri: Url::from_file_path(input.text_document).unwrap(),
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+            range: Range {
+                start: input.range.start.into(),
+                end: input.range.end.into(),
+            },
+            context: CodeActionContext {
+                diagnostics: vec![],
+                only: None,
+            },
+        };
+
+        let client = self.get_client(language_id).await?;
+        let res: Option<CodeActionResponse> =
+            client.call(request::CodeActionRequest::METHOD, params)?;
+
+        if res.is_none() {
+            return Ok(vec![]);
+        }
+
+        let actions = res.unwrap();
+        let mut state = self.state.write().await;
+        state.code_actions = actions.clone();
+
+        Ok(actions)
     }
 
     pub async fn text_document_code_lens(
@@ -505,7 +578,6 @@ where
             return Ok(vec![]);
         }
 
-        log::error!("resolving {} code lenses", input.len());
         let tasks: Vec<_> = input
             .into_iter()
             .map(|cl| {
@@ -516,12 +588,7 @@ where
                         return cl;
                     }
 
-                    let res = lc.code_lens_resolve(&language_id, &cl).await;
-                    if let Err(err) = &res {
-                        log::error!("{}", err);
-                    }
-
-                    res.unwrap_or(cl)
+                    lc.code_lens_resolve(&language_id, &cl).await.unwrap_or(cl)
                 })
             })
             .collect();

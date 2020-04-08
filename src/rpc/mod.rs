@@ -37,9 +37,8 @@ impl Client {
         I: AsyncBufReadExt + Unpin + Send + 'static,
         O: AsyncWrite + Unpin + Send + 'static,
     {
-        use futures::executor::block_on;
-        let (pending_tx, pending_rx) = crossbeam::unbounded();
-        let (reader_tx, reader_rx) = crossbeam::bounded(1);
+        let (pending_tx, pending_rx) = crossbeam::bounded(1);
+        let (reader_tx, reader_rx) = crossbeam::unbounded();
         {
             let server_id = server_id.clone();
             std::thread::spawn(move || {
@@ -79,7 +78,7 @@ where
 {
     for message in receiver.iter() {
         let message = serde_json::to_string(&message)?;
-        log::error!(
+        log::debug!(
             "{:?} [thread: {:?}] <== {}\n",
             server_id,
             std::thread::current().id(),
@@ -120,8 +119,8 @@ where
         let mut message = vec![0 as u8; content_length];
         reader.read_exact(&mut message).await?;
         let message = String::from_utf8(message)?;
-        log::error!(
-            "{:?} [thread: {:?}] ==> {}\n",
+        log::debug!(
+            "{:?} [thread: {:?}] ==> {}",
             server_id,
             std::thread::current().id(),
             message
@@ -143,6 +142,8 @@ where
                 sender.send(message.clone())?;
             }
         }
+
+        log::debug!("sent message {:?}\n", message_id);
     }
 }
 
@@ -196,8 +197,8 @@ impl RPCClient for Client {
             id: jsonrpc_core::Id::Num(id),
         };
 
-        self.writer_tx.send(Message::MethodCall(message))?;
         self.pending_tx.send((jsonrpc_core::Id::Num(id), tx))?;
+        self.writer_tx.send(Message::MethodCall(message))?;
 
         let message = rx.recv()?;
         match message {

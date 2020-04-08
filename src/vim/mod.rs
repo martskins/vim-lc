@@ -1,5 +1,66 @@
 use serde::{Deserialize, Serialize};
 
+/// FZFItem is a trait that enables a type to be displayed in FZF.
+pub trait FZFItem {
+    /// user selection callback. This should take the name of a scope local function defined in
+    /// vim.
+    fn sink() -> String;
+    /// text to display for the item in FZF.
+    fn text(&self) -> String;
+}
+
+#[derive(Debug, Serialize)]
+pub struct LocationWithPreview {
+    pub location: Location,
+    pub preview: String,
+}
+
+impl FZFItem for LocationWithPreview {
+    fn sink() -> String {
+        "s:fzfLocationSink".into()
+    }
+
+    fn text(&self) -> String {
+        format!(
+            "{}:{} \t{}",
+            self.location.filename, self.location.position.line, self.preview
+        )
+    }
+}
+
+impl FZFItem for Action {
+    fn sink() -> String {
+        "s:resolveCodeAction".into()
+    }
+
+    fn text(&self) -> String {
+        format!("{}", self.text)
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub enum HLGroup {
+    Comment,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DocumentChanges {
+    pub text_document: String,
+    pub changes: Vec<BufChanges>,
+}
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ResolveCodeActionParams {
+    pub selection: String,
+    #[serde(flatten)]
+    pub position: CursorPosition,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Action {
+    pub text: String,
+    pub command: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct TextDocumentChanges {
     pub text_document: String,
@@ -9,6 +70,13 @@ pub struct TextDocumentChanges {
 #[derive(Debug, Default, Serialize)]
 pub struct WorkspaceChanges {
     pub changes: Vec<TextDocumentChanges>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BufChanges {
+    pub start: Position,
+    pub end: Position,
+    pub lines: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -33,7 +101,7 @@ pub struct RenameParams {
 pub struct VirtualText {
     pub text: String,
     pub line: u64,
-    pub hl_group: String,
+    pub hl_group: HLGroup,
 }
 
 #[derive(Debug, Serialize)]
@@ -229,8 +297,16 @@ impl From<lsp_types::Location> for Location {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub enum LogLevel {
+    Error = 1,
+    Warning = 2,
+    Info = 3,
+    Log = 4,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Message {
-    pub level: u64,
+    pub level: LogLevel,
     pub message: String,
 }
 
@@ -240,7 +316,7 @@ pub struct BufInfo {
     pub language_id: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct CursorPosition {
     /// file name of the text document
     pub text_document: String,
@@ -249,6 +325,26 @@ pub struct CursorPosition {
     /// position of the cursor
     #[serde(flatten)]
     pub position: Position,
+}
+
+impl Into<lsp_types::ReferenceParams> for CursorPosition {
+    fn into(self) -> lsp_types::ReferenceParams {
+        lsp_types::ReferenceParams {
+            text_document_position: lsp_types::TextDocumentPositionParams {
+                text_document: lsp_types::TextDocumentIdentifier {
+                    uri: lsp_types::Url::from_file_path(self.text_document).unwrap(),
+                },
+                position: lsp_types::Position {
+                    line: self.position.line - 1,
+                    character: self.position.column - 1,
+                },
+            },
+            work_done_progress_params: lsp_types::WorkDoneProgressParams::default(),
+            context: lsp_types::ReferenceContext {
+                include_declaration: false,
+            },
+        }
+    }
 }
 
 impl Into<lsp_types::TextDocumentPositionParams> for CursorPosition {
@@ -271,12 +367,30 @@ pub struct Range {
     pub end: Position,
 }
 
+impl Into<lsp_types::Range> for Range {
+    fn into(self) -> lsp_types::Range {
+        lsp_types::Range {
+            start: self.start.into(),
+            end: self.end.into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Position {
     /// line position in a buffer, one-based
     pub line: u64,
     /// column position in a buffer, one-based
     pub column: u64,
+}
+
+impl Into<lsp_types::Position> for Position {
+    fn into(self) -> lsp_types::Position {
+        lsp_types::Position {
+            line: self.line,
+            character: self.column,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]

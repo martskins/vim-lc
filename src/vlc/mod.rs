@@ -175,15 +175,30 @@ where
         Ok(())
     }
 
-    async fn code_action(&self, params: TextDocumentIdentifier) -> Fallible<()> {
+    async fn code_action(&self, params: SelectionRange) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        let response: Vec<lsp_types::CodeAction> = LANGUAGE_CLIENT
+        let response: Vec<lsp_types::CodeActionOrCommand> = LANGUAGE_CLIENT
             .text_document_code_action(&language_id, params)
             .await?;
         if response.is_empty() {
             return Ok(());
         }
 
+        let actions: Vec<Action> = response
+            .into_iter()
+            .map(|a| match a {
+                lsp_types::CodeActionOrCommand::Command(command) => Action {
+                    text: command.title,
+                    command: command.command,
+                },
+                lsp_types::CodeActionOrCommand::CodeAction(action) => Action {
+                    text: action.title,
+                    command: action.command.unwrap_or_default().command,
+                },
+            })
+            .collect();
+
+        self.show_in_fzf(actions.clone())?;
         Ok(())
     }
 
@@ -205,11 +220,14 @@ where
                 Some(VirtualText {
                     line,
                     text,
-                    hl_group: "Comment".into(),
+                    hl_group: HLGroup::Comment,
                 })
             })
             .filter(|i| !i.is_none())
             .collect();
+        if virtual_texts.len() == 0 {
+            return Ok(());
+        }
 
         self.client.notify("setVirtualTexts", virtual_texts)?;
         Ok(())
@@ -289,10 +307,7 @@ where
             rpc::Message::MethodCall(msg) => match msg.method.as_str() {
                 "start" => {
                     let params: BufInfo = serde_json::from_value(msg.params.into())?;
-                    LANGUAGE_CLIENT
-                        .clone()
-                        .start_server(&params.language_id)
-                        .await?;
+                    LANGUAGE_CLIENT.start_server(&params.language_id).await?;
                 }
                 "initialize" => {
                     let params: BufInfo = serde_json::from_value(msg.params.into())?;
@@ -314,8 +329,14 @@ where
                     let params: TextDocumentIdentifier = serde_json::from_value(msg.params.into())?;
                     self.code_lens(params).await?;
                 }
+                // not part of LSP
+                "resolveCodeAction" => {
+                    let params: ResolveCodeActionParams =
+                        serde_json::from_value(msg.params.into())?;
+                    LANGUAGE_CLIENT.resolve_code_action(params).await?;
+                }
                 "textDocument/codeAction" => {
-                    let params: TextDocumentIdentifier = serde_json::from_value(msg.params.into())?;
+                    let params: SelectionRange = serde_json::from_value(msg.params.into())?;
                     self.code_action(params).await?;
                 }
                 "textDocument/definition" => {
