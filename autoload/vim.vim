@@ -46,7 +46,7 @@ function! vim#applyChanges(changes) abort
   execute 'edit' a:changes['text_document']
   for change in a:changes['edits']
     for line in change['lines']
-      let l:lnum = line['lnum']
+      let l:lnum = line['line']
       call setline(l:lnum, line['text'])
     endfor
   endfor

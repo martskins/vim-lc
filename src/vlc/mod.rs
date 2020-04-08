@@ -47,25 +47,27 @@ where
         }
     }
 
-    fn initialize(&self, params: BaseParams) -> Fallible<()> {
-        LANGUAGE_CLIENT.initialize(&params.language_id)?;
-        LANGUAGE_CLIENT.initialized(&params.language_id)?;
+    async fn initialize(&self, params: BufInfo) -> Fallible<()> {
+        LANGUAGE_CLIENT.initialize(&params.language_id).await?;
+        LANGUAGE_CLIENT.initialized(&params.language_id).await?;
         Ok(())
     }
 
-    fn exit(&self, params: BaseParams) -> Fallible<()> {
-        LANGUAGE_CLIENT.exit(&params.language_id)?;
+    async fn exit(&self, params: BufInfo) -> Fallible<()> {
+        LANGUAGE_CLIENT.exit(&params.language_id).await?;
         Ok(())
     }
 
-    fn shutdown(&self, params: BaseParams) -> Fallible<()> {
-        LANGUAGE_CLIENT.shutdown(&params.language_id)?;
+    async fn shutdown(&self, params: BufInfo) -> Fallible<()> {
+        LANGUAGE_CLIENT.shutdown(&params.language_id).await?;
         Ok(())
     }
 
-    fn rename(&self, params: RenameParams) -> Fallible<()> {
-        let language_id = params.language_id.clone();
-        let response = LANGUAGE_CLIENT.text_document_rename(&language_id, params)?;
+    async fn rename(&self, params: RenameParams) -> Fallible<()> {
+        let language_id = params.position.language_id.clone();
+        let response = LANGUAGE_CLIENT
+            .text_document_rename(&language_id, params)
+            .await?;
         if response.is_none() {
             return Ok(());
         }
@@ -76,34 +78,44 @@ where
 
     async fn did_open(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        LANGUAGE_CLIENT.text_document_did_open(&language_id, params.clone())?;
+        LANGUAGE_CLIENT
+            .text_document_did_open(&language_id, params.clone())
+            .await?;
         self.code_lens(params.into()).await?;
         Ok(())
     }
 
     async fn did_save(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        LANGUAGE_CLIENT.text_document_did_save(&language_id, params.clone())?;
+        LANGUAGE_CLIENT
+            .text_document_did_save(&language_id, params.clone())
+            .await?;
         self.code_lens(params.into()).await?;
         Ok(())
     }
 
-    fn did_close(&self, params: TextDocumentContent) -> Fallible<()> {
+    async fn did_close(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        LANGUAGE_CLIENT.text_document_did_close(&language_id, params)?;
+        LANGUAGE_CLIENT
+            .text_document_did_close(&language_id, params)
+            .await?;
         Ok(())
     }
 
     async fn did_change(&self, params: TextDocumentContent) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        LANGUAGE_CLIENT.text_document_did_change(&language_id, params.clone())?;
+        LANGUAGE_CLIENT
+            .text_document_did_change(&language_id, params.clone())
+            .await?;
         self.code_lens(params.into()).await?;
         Ok(())
     }
 
-    fn implementation(&self, params: TextDocumentPosition) -> Fallible<()> {
+    async fn implementation(&self, params: CursorPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        let response = LANGUAGE_CLIENT.text_document_implementation(&language_id, params)?;
+        let response = LANGUAGE_CLIENT
+            .text_document_implementation(&language_id, params)
+            .await?;
         if response.is_none() {
             return Ok(());
         }
@@ -126,9 +138,11 @@ where
         Ok(())
     }
 
-    fn hover(&self, params: TextDocumentPosition) -> Fallible<()> {
+    async fn hover(&self, params: CursorPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        let response = LANGUAGE_CLIENT.text_document_hover(&language_id, params)?;
+        let response = LANGUAGE_CLIENT
+            .text_document_hover(&language_id, params)
+            .await?;
         if response.is_none() {
             return Ok(());
         }
@@ -137,9 +151,11 @@ where
         Ok(())
     }
 
-    fn references(&self, params: TextDocumentPosition) -> Fallible<()> {
+    async fn references(&self, params: CursorPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        let response = LANGUAGE_CLIENT.text_document_references(&language_id, params)?;
+        let response = LANGUAGE_CLIENT
+            .text_document_references(&language_id, params)
+            .await?;
         if response.is_none() {
             return Ok(());
         }
@@ -154,6 +170,18 @@ where
                 let locations = response.into_iter().map(|l| l.into()).collect();
                 vim.show_locations(locations)?;
             }
+        }
+
+        Ok(())
+    }
+
+    async fn code_action(&self, params: TextDocumentIdentifier) -> Fallible<()> {
+        let language_id = params.language_id.clone();
+        let response: Vec<lsp_types::CodeAction> = LANGUAGE_CLIENT
+            .text_document_code_action(&language_id, params)
+            .await?;
+        if response.is_empty() {
+            return Ok(());
         }
 
         Ok(())
@@ -187,13 +215,15 @@ where
         Ok(())
     }
 
-    fn completion(
+    async fn completion(
         &self,
         message_id: &jsonrpc_core::Id,
-        params: TextDocumentPosition,
+        params: CursorPosition,
     ) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        let response = LANGUAGE_CLIENT.text_document_completion(&language_id, params)?;
+        let response = LANGUAGE_CLIENT
+            .text_document_completion(&language_id, params)
+            .await?;
         if response.is_none() {
             return Ok(());
         }
@@ -225,9 +255,11 @@ where
         Ok(())
     }
 
-    fn definition(&self, params: TextDocumentPosition) -> Fallible<()> {
+    async fn definition(&self, params: CursorPosition) -> Fallible<()> {
         let language_id = params.language_id.clone();
-        let response = LANGUAGE_CLIENT.text_document_definition(&language_id, params.into())?;
+        let response = LANGUAGE_CLIENT
+            .text_document_definition(&language_id, params)
+            .await?;
         if response.is_none() {
             return Ok(());
         }
@@ -256,50 +288,55 @@ where
         match message {
             rpc::Message::MethodCall(msg) => match msg.method.as_str() {
                 "start" => {
-                    let params: BaseParams = serde_json::from_value(msg.params.into())?;
-                    LANGUAGE_CLIENT.clone().start_server(&params.language_id)?;
+                    let params: BufInfo = serde_json::from_value(msg.params.into())?;
+                    LANGUAGE_CLIENT
+                        .clone()
+                        .start_server(&params.language_id)
+                        .await?;
                 }
                 "initialize" => {
-                    let params: BaseParams = serde_json::from_value(msg.params.into())?;
-                    self.initialize(params)?;
+                    let params: BufInfo = serde_json::from_value(msg.params.into())?;
+                    self.initialize(params).await?;
                 }
                 "shutdown" => {
-                    let params: BaseParams = serde_json::from_value(msg.params.into())?;
-                    self.shutdown(params)?;
+                    let params: BufInfo = serde_json::from_value(msg.params.into())?;
+                    self.shutdown(params).await?;
                 }
                 "exit" => {
-                    let params: BaseParams = serde_json::from_value(msg.params.into())?;
-                    self.exit(params)?;
+                    let params: BufInfo = serde_json::from_value(msg.params.into())?;
+                    self.exit(params).await?;
                 }
                 "textDocument/completion" => {
-                    let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
-                    self.completion(&message_id, params)?;
+                    let params: CursorPosition = serde_json::from_value(msg.params.into())?;
+                    self.completion(&message_id, params).await?;
                 }
                 "textDocument/codeLens" => {
                     let params: TextDocumentIdentifier = serde_json::from_value(msg.params.into())?;
                     self.code_lens(params).await?;
                 }
+                "textDocument/codeAction" => {
+                    let params: TextDocumentIdentifier = serde_json::from_value(msg.params.into())?;
+                    self.code_action(params).await?;
+                }
                 "textDocument/definition" => {
-                    let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
-                    self.definition(params)?;
+                    let params: CursorPosition = serde_json::from_value(msg.params.into())?;
+                    self.definition(params).await?;
                 }
                 "textDocument/hover" => {
-                    let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
-                    self.hover(params)?;
+                    let params: CursorPosition = serde_json::from_value(msg.params.into())?;
+                    self.hover(params).await?;
                 }
                 "textDocument/references" => {
-                    let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
-                    self.references(params)?;
+                    let params: CursorPosition = serde_json::from_value(msg.params.into())?;
+                    self.references(params).await?;
                 }
                 "textDocument/rename" => {
                     let params: RenameParams = serde_json::from_value(msg.params.into()).unwrap();
-                    if let Err(err) = self.rename(params) {
-                        log::error!("{}", err);
-                    }
+                    self.rename(params).await?;
                 }
                 "textDocument/implementation" => {
-                    let params: TextDocumentPosition = serde_json::from_value(msg.params.into())?;
-                    self.implementation(params)?;
+                    let params: CursorPosition = serde_json::from_value(msg.params.into())?;
+                    self.implementation(params).await?;
                 }
                 _ => log::debug!("unhandled method call {}", msg.method),
             },
@@ -314,7 +351,7 @@ where
                 }
                 "textDocument/didClose" => {
                     let params: TextDocumentContent = serde_json::from_value(msg.params.into())?;
-                    self.did_close(params)?;
+                    self.did_close(params).await?;
                 }
                 "textDocument/didChange" => {
                     let params: TextDocumentContent = serde_json::from_value(msg.params.into())?;

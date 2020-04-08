@@ -19,7 +19,7 @@ where
         &self,
         filename: &str,
         edits: lsp_types::TextDocumentEdit,
-    ) -> Fallible<Vec<TextDocumentEdit>> {
+    ) -> Fallible<Vec<Lines>> {
         let tasks: Vec<_> = edits
             .edits
             .into_iter()
@@ -39,7 +39,7 @@ where
         &self,
         filename: &str,
         edit: lsp_types::TextEdit,
-    ) -> Fallible<TextDocumentEdit> {
+    ) -> Fallible<Lines> {
         let mut line: String = LANGUAGE_CLIENT
             .get_line(filename, edit.range.start.line + 1)
             .await?;
@@ -49,11 +49,11 @@ where
         line.replace_range(start..end, &edit.new_text);
 
         let lines = vec![Line {
-            lnum: edit.range.start.line + 1,
+            line: edit.range.start.line + 1,
             text: line,
         }];
 
-        Ok(TextDocumentEdit { lines })
+        Ok(Lines { lines })
     }
 
     async fn text_document_change_from_edit(
@@ -169,14 +169,14 @@ where
             .map(|l| {
                 let filename = l.filename.replace(self.root_path.as_str(), "");
                 // TODO: parallelize these calls
-                let text = block_on(LANGUAGE_CLIENT.get_line(filename.as_str(), l.line))
+                let text = block_on(LANGUAGE_CLIENT.get_line(filename.as_str(), l.position.line))
                     .unwrap_or_default();
 
                 QuickfixItem {
                     bufnr: 0,
                     filename: l.filename.replace(self.root_path.as_str(), ""),
-                    lnum: l.line,
-                    col: l.col,
+                    line: l.position.line,
+                    column: l.position.column,
                     text,
                     kind: 'W',
                 }
@@ -198,7 +198,7 @@ where
             },
             ExecuteParams {
                 action: "call".into(),
-                command: format!("cursor({}, {})", input.line, input.col),
+                command: format!("cursor({}, {})", input.position.line, input.position.column),
             },
         ])?;
         Ok(())

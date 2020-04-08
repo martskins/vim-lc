@@ -10,6 +10,40 @@ pub struct Config {
     pub diagnostics: Diagnostics,
     pub locations: Locations,
     pub servers: HashMap<String, String>,
+    pub features: FeatureFlags,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+// INFO: some of these make no sense to toggle, might revisit this later.
+pub struct FeatureFlags {
+    pub code_lens: bool,
+    pub code_lens_resolve: bool,
+    pub code_action: bool,
+    pub completion: bool,
+    pub references: bool,
+    pub definition: bool,
+    pub implementation: bool,
+    pub hover: bool,
+    pub diagnostics: bool,
+    pub rename: bool,
+}
+
+impl Default for FeatureFlags {
+    fn default() -> Self {
+        Self {
+            code_lens: true,
+            code_lens_resolve: true,
+            code_action: true,
+            completion: true,
+            references: true,
+            definition: true,
+            implementation: true,
+            hover: true,
+            diagnostics: true,
+            rename: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

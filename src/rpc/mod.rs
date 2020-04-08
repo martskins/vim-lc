@@ -37,22 +37,25 @@ impl Client {
         I: AsyncBufReadExt + Unpin + Send + 'static,
         O: AsyncWrite + Unpin + Send + 'static,
     {
+        use futures::executor::block_on;
         let (pending_tx, pending_rx) = crossbeam::unbounded();
-        let (reader_tx, reader_rx) = crossbeam::unbounded();
+        let (reader_tx, reader_rx) = crossbeam::bounded(1);
         {
             let server_id = server_id.clone();
-            tokio::spawn(async move {
-                loop_read::<I>(server_id, reader, pending_rx, reader_tx)
-                    .await
+            std::thread::spawn(move || {
+                let mut rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(loop_read::<I>(server_id, reader, pending_rx, reader_tx))
                     .unwrap();
             });
         }
 
-        let (writer_tx, writer_rx) = crossbeam::unbounded();
+        let (writer_tx, writer_rx) = crossbeam::bounded(1);
         {
             let server_id = server_id.clone();
-            tokio::spawn(async move {
-                loop_write::<O>(server_id, writer, writer_rx).await.unwrap();
+            std::thread::spawn(move || {
+                let mut rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(loop_write::<O>(server_id, writer, writer_rx))
+                    .unwrap();
             });
         }
 
@@ -76,7 +79,12 @@ where
 {
     for message in receiver.iter() {
         let message = serde_json::to_string(&message)?;
-        log::error!("{:?} <== {}\n", server_id, message);
+        log::error!(
+            "{:?} [thread: {:?}] <== {}\n",
+            server_id,
+            std::thread::current().id(),
+            message
+        );
         let message = message + "\r\n";
 
         let message = message.as_bytes();
@@ -112,7 +120,12 @@ where
         let mut message = vec![0 as u8; content_length];
         reader.read_exact(&mut message).await?;
         let message = String::from_utf8(message)?;
-        log::error!("{:?} ==> {}\n", server_id, message);
+        log::error!(
+            "{:?} [thread: {:?}] ==> {}\n",
+            server_id,
+            std::thread::current().id(),
+            message
+        );
 
         let message: Message = serde_json::from_str(message.as_str())?;
         let message_id = message.id();

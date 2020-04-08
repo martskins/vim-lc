@@ -47,10 +47,8 @@ function! lsp#rename(new_name) abort
     return 0
   endif
 
-  return rpc#call('textDocument/rename', {
-        \ 'text_document_position': extend(s:Position(), {'language_id': &filetype}),
-        \ 'new_name': a:new_name
-        \ })
+  let l:params = extend(s:Position(), { 'language_id': &filetype, 'new_name': a:new_name })
+  return rpc#call('textDocument/rename', l:params)
 endfunction
 
 
@@ -96,8 +94,8 @@ endfunction
 
 "{{{ PRIVATE FUNCTIONS
 function! s:Position(...) abort
-  let l:line = line('.') - 1
-  let l:col = col('.') - 1
+  let l:line = line('.')
+  let l:col = col('.')
   let l:path = expand('%:p')
 
   return {

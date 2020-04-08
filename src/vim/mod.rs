@@ -3,30 +3,30 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize)]
 pub struct TextDocumentChanges {
     pub text_document: String,
-    pub edits: Vec<TextDocumentEdit>,
+    pub edits: Vec<Lines>,
 }
 
 #[derive(Debug, Default, Serialize)]
-pub struct WorkspaceEdit {
+pub struct WorkspaceChanges {
     pub changes: Vec<TextDocumentChanges>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct TextDocumentEdit {
+pub struct Lines {
     pub lines: Vec<Line>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct Line {
-    pub lnum: u64,
+    pub line: u64,
     pub text: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct RenameParams {
-    pub language_id: String,
-    pub text_document_position: TextDocumentPosition,
     pub new_name: String,
+    #[serde(flatten)]
+    pub position: CursorPosition,
 }
 
 #[derive(Debug, Serialize)]
@@ -144,8 +144,8 @@ impl Into<QuickfixItem> for Diagnostic {
         QuickfixItem {
             bufnr: 0,
             filename: self.text_document,
-            lnum: self.line,
-            col: self.col,
+            line: self.line,
+            column: self.col,
             text: self.text,
             kind,
         }
@@ -189,8 +189,10 @@ pub struct ExecuteParams {
 pub struct QuickfixItem {
     pub bufnr: u64,
     pub filename: String,
-    pub lnum: u64,
-    pub col: u64,
+    #[serde(rename = "lnum")]
+    pub line: u64,
+    #[serde(rename = "col")]
+    pub column: u64,
     pub text: String,
     pub kind: char,
 }
@@ -198,16 +200,18 @@ pub struct QuickfixItem {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Location {
     pub filename: String,
-    pub line: u64,
-    pub col: u64,
+    #[serde(flatten)]
+    pub position: Position,
 }
 
 impl From<lsp_types::LocationLink> for Location {
     fn from(f: lsp_types::LocationLink) -> Self {
         Location {
             filename: f.target_uri.to_string(),
-            line: f.target_range.start.line + 1,
-            col: f.target_range.start.character + 1,
+            position: Position {
+                line: f.target_range.start.line + 1,
+                column: f.target_range.start.character + 1,
+            },
         }
     }
 }
@@ -216,8 +220,10 @@ impl From<lsp_types::Location> for Location {
     fn from(f: lsp_types::Location) -> Self {
         Location {
             filename: f.uri.to_string(),
-            line: f.range.start.line + 1,
-            col: f.range.start.character + 1,
+            position: Position {
+                line: f.range.start.line + 1,
+                column: f.range.start.character + 1,
+            },
         }
     }
 }
@@ -229,29 +235,56 @@ pub struct Message {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct BaseParams {
+pub struct BufInfo {
     pub bufnr: u64,
     pub language_id: String,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct TextDocumentPosition {
+pub struct CursorPosition {
+    /// file name of the text document
     pub text_document: String,
-    pub line: u64,
-    pub column: u64,
+    /// language_id for the text document
     pub language_id: String,
+    /// position of the cursor
+    #[serde(flatten)]
+    pub position: Position,
 }
 
-impl Into<lsp_types::TextDocumentPositionParams> for TextDocumentPosition {
+impl Into<lsp_types::TextDocumentPositionParams> for CursorPosition {
     fn into(self) -> lsp_types::TextDocumentPositionParams {
         lsp_types::TextDocumentPositionParams {
             text_document: lsp_types::TextDocumentIdentifier {
                 uri: lsp_types::Url::from_file_path(self.text_document).unwrap(),
             },
             position: lsp_types::Position {
-                line: self.line,
-                character: self.column,
+                line: self.position.line - 1,
+                character: self.position.column - 1,
             },
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Range {
+    pub start: Position,
+    pub end: Position,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Position {
+    /// line position in a buffer, one-based
+    pub line: u64,
+    /// column position in a buffer, one-based
+    pub column: u64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SelectionRange {
+    /// file name of the text document
+    pub text_document: String,
+    /// language_id for the text document
+    pub language_id: String,
+    /// start position
+    pub range: Range,
 }
