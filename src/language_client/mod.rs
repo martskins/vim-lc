@@ -37,7 +37,7 @@ where
 }
 
 impl LanguageClient<rpc::Client> {
-    /// runs the binary specified in the config file for the given language_id
+    // runs the binary specified in the config file for the given language_id
     pub async fn start_server(&self, language_id: &str) -> Fallible<()> {
         let binpath = CONFIG.servers.get(language_id);
         if binpath.is_none() {
@@ -128,7 +128,27 @@ where
         }
     }
 
-    /// handles messages sent from vim to the language client
+    pub async fn code_lens_for_position(
+        &self,
+        position: vim::CursorPosition,
+    ) -> Fallible<Vec<lsp_types::CodeLens>> {
+        let state = self.state.read().await;
+        let code_lens = state.code_lens.get(&position.text_document);
+        if code_lens.is_none() {
+            return Ok(vec![]);
+        }
+
+        let code_lens = code_lens
+            .unwrap()
+            .iter()
+            .filter(|x| x.range.start.line + 1 == position.position.line)
+            .cloned()
+            .collect();
+
+        Ok(code_lens)
+    }
+
+    // handles messages sent from vim to the language client
     async fn handle_message(&self, message: rpc::Message) -> Fallible<()> {
         log::debug!("started LanguageClient::handle_message");
         match message {
@@ -515,9 +535,9 @@ where
         input: vim::TextDocumentIdentifier,
     ) -> Fallible<Vec<CodeLens>> {
         log::debug!("started LanguageClient::text_document_code_lens");
-        let input = CodeLensParams {
+        let params = CodeLensParams {
             text_document: TextDocumentIdentifier {
-                uri: Url::from_file_path(input.text_document).unwrap(),
+                uri: Url::from_file_path(input.text_document.clone()).unwrap(),
             },
             work_done_progress_params: Default::default(),
             partial_result_params: Default::default(),
@@ -525,7 +545,7 @@ where
 
         let client = LANGUAGE_CLIENT.get_client(language_id).await?;
         let response: Option<Vec<CodeLens>> =
-            client.call(request::CodeLensRequest::METHOD, input)?;
+            client.call(request::CodeLensRequest::METHOD, params)?;
         let response = response.unwrap_or_default();
         if response.is_empty() {
             return Ok(vec![]);
@@ -536,21 +556,39 @@ where
         drop(state);
 
         if capabilities.is_none() {
+            log::debug!("skipping codeLens/resolve, capabilities is None");
+            self.store_code_lens(&input.text_document, response.clone())
+                .await;
             return Ok(response);
         }
         let capabilities = capabilities.unwrap();
 
         if capabilities.code_lens_provider.is_none() {
+            log::debug!("skipping codeLens/resolve, server is not codeLens provider");
+            self.store_code_lens(&input.text_document, response.clone())
+                .await;
             return Ok(response);
         }
         let code_lens_provider = capabilities.code_lens_provider.clone().unwrap();
 
         if !code_lens_provider.resolve_provider.unwrap_or_default() {
+            log::debug!("skipping codeLens/resolve, server is not codeLens resolve provider");
+            self.store_code_lens(&input.text_document, response.clone())
+                .await;
             return Ok(response);
         }
 
         let response = self.resolve_code_lens(language_id, response).await?;
+        self.store_code_lens(&input.text_document, response.clone())
+            .await;
+
         Ok(response)
+    }
+
+    async fn store_code_lens(&self, filename: &str, code_lens: Vec<CodeLens>) {
+        log::error!("CL: {:?}", code_lens);
+        let mut state = self.state.write().await;
+        state.code_lens.insert(filename.into(), code_lens);
     }
 
     pub async fn resolve_code_lens(
@@ -568,22 +606,14 @@ where
             .map(|cl| {
                 let lc = self.clone();
                 let language_id = language_id.to_string();
-                tokio::task::spawn(async move {
-                    if cl.data.is_none() {
-                        return cl;
-                    }
+                if cl.data.is_none() {
+                    return cl;
+                }
 
-                    lc.code_lens_resolve(&language_id, &cl).await.unwrap_or(cl)
-                })
+                futures::executor::block_on(lc.code_lens_resolve(&language_id, &cl)).unwrap_or(cl)
             })
             .collect();
 
-        let res = futures::future::join_all(res)
-            .await
-            .into_iter()
-            .filter(|c| c.is_ok())
-            .map(|c| c.unwrap())
-            .collect();
         Ok(res)
     }
 

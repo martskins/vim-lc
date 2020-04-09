@@ -235,6 +235,32 @@ where
         Ok(())
     }
 
+    async fn code_lens_action(&self, position: CursorPosition) -> Fallible<()> {
+        if !CONFIG.features.code_action {
+            return Ok(());
+        }
+
+        let code_lens = self.code_lens_for_position(position).await?;
+        self.show_in_fzf(code_lens)?;
+        Ok(())
+    }
+
+    async fn code_lens_for_position(
+        &self,
+        position: CursorPosition,
+    ) -> Fallible<Vec<lsp_types::CodeLens>> {
+        let code_lens = LANGUAGE_CLIENT.code_lens_for_position(position).await?;
+        if code_lens.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let code_lens = code_lens
+            .into_iter()
+            .filter(|x| x.command.is_some())
+            .collect();
+        Ok(code_lens)
+    }
+
     async fn code_lens(&self, params: TextDocumentIdentifier) -> Fallible<()> {
         if !CONFIG.features.code_lens {
             return Ok(());
@@ -248,20 +274,30 @@ where
             return Ok(());
         }
 
-        let virtual_texts: Vec<Option<VirtualText>> = response
-            .into_iter()
-            .map(|cl| {
-                let text = cl.command?.title;
-                let line = cl.range.start.line;
+        let mut virtual_texts = vec![];
+        response.into_iter().for_each(|cl| {
+            if cl.command.is_none() {
+                return;
+            }
 
-                Some(VirtualText {
+            let text = cl.command.unwrap().title;
+            let line = cl.range.start.line;
+
+            match virtual_texts
+                .iter()
+                .position(|v: &VirtualText| v.line == line)
+            {
+                Some(idx) => virtual_texts[idx]
+                    .text
+                    .push_str(format!(" | {}", text).as_str()),
+                None => virtual_texts.push(VirtualText {
                     line,
                     text,
                     hl_group: HLGroup::Comment,
-                })
-            })
-            .filter(|i| !i.is_none())
-            .collect();
+                }),
+            }
+        });
+
         if virtual_texts.len() == 0 {
             return Ok(());
         }
@@ -345,7 +381,7 @@ where
         Ok(())
     }
 
-    /// handles messages sent from vim to the language client
+    // handles messages sent from vim to the language client
     async fn handle_message(&self, message: rpc::Message) -> Fallible<()> {
         let message_id = message.id();
         match message {
@@ -373,6 +409,11 @@ where
                 "textDocument/codeLens" => {
                     let params: TextDocumentIdentifier = serde_json::from_value(msg.params.into())?;
                     self.code_lens(params).await?;
+                }
+                // not part of LSP
+                "codeLensAction" => {
+                    let params: CursorPosition = serde_json::from_value(msg.params.into())?;
+                    self.code_lens_action(params).await?;
                 }
                 // not part of LSP
                 "resolveCodeAction" => {

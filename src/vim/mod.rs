@@ -1,12 +1,26 @@
 use serde::{Deserialize, Serialize};
 
-/// FZFItem is a trait that enables a type to be displayed in FZF.
+// FZFItem is a trait that enables a type to be displayed in FZF.
 pub trait FZFItem {
-    /// user selection callback. This should take the name of a scope local function defined in
-    /// vim.
+    // user selection callback. This should take the name of a scope local function defined in
+    // vim.
     fn sink() -> String;
-    /// text to display for the item in FZF.
+    // text to display for the item in FZF.
     fn text(&self) -> String;
+}
+
+impl FZFItem for lsp_types::CodeLens {
+    fn sink() -> String {
+        "s:resolveCodeAction".into()
+    }
+
+    fn text(&self) -> String {
+        format!(
+            "{}: {}",
+            self.command.as_ref().unwrap().command,
+            self.command.as_ref().unwrap().title
+        )
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -111,32 +125,30 @@ pub struct CompletionList {
 
 #[derive(Debug, Default, Serialize)]
 pub struct CompletionItem {
-    /// text that will be inserted, mandatory
+    // text that will be inserted, mandatory
     pub word: String,
-    /// abbreviation of "word"; when not empty it is used in the menu instead of "word"
+    // abbreviation of "word"; when not empty it is used in the menu instead of "word"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub abbr: Option<String>,
-    ///  extra text for the popup menu, displayed after "word" or "abbr"
+    //  extra text for the popup menu, displayed after "word" or "abbr"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub menu: Option<String>,
-    /// more information about the item, can be displayed in a preview window
+    // more information about the item, can be displayed in a preview window
     #[serde(skip_serializing_if = "Option::is_none")]
     pub info: Option<String>,
-    /// single letter indicating the type of completion
+    // single letter indicating the type of completion
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<char>,
-    /// when non-zero case is to be ignored when comparing items to be equal; when omitted zero is
-    /// used, thus items that only differ in case are added
+    // when non-zero case is to be ignored when comparing items to be equal; when omitted zero is
+    // used, thus items that only differ in case are added
     pub icase: u8,
-    /// when non-zero, always treat this item to be equal when comparing. Which means, "equal=1"
-    /// disables filtering of this item.
+    // when non-zero, always treat this item to be equal when comparing. Which means, "equal=1"
+    // disables filtering of this item.
     pub equal: u8,
-    /// when non-zero this match will be added even when an item with the same word is already present.
+    // when non-zero this match will be added even when an item with the same word is already present.
     pub dup: u8,
-    /// when non-zero this match will be added even when it is an empty string
+    // when non-zero this match will be added even when it is an empty string
     pub empty: u8,
-    // /// custom data which is associated with the item and available in |v:completed_item|
-    // pub user_data: HashMap<String, String>,
 }
 
 pub fn completion_item_kind(input: Option<lsp_types::CompletionItemKind>) -> Option<char> {

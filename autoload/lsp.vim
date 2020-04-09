@@ -42,6 +42,15 @@ function! lsp#shutdown() abort
   call rpc#call('shutdown', v:null)
 endfunction
 
+function! lsp#codeLensAction() abort
+  if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
+    return 0
+  endif
+
+  let l:params = s:Position()
+  return rpc#call('codeLensAction', l:params)
+endfunction
+
 function! lsp#codeAction() abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0

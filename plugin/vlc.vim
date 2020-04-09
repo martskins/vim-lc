@@ -1,5 +1,6 @@
 call call('vim#start', [])
 
+nnoremap <silent>gl   :call vlc#codeLensAction()<CR>
 nnoremap <silent>ga   :call vlc#codeAction()<CR>
 vnoremap <silent>ga   :call vlc#codeAction()<CR>
 nnoremap <silent>gd   :call vlc#goToDefinition()<CR>
