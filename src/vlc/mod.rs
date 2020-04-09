@@ -298,7 +298,7 @@ where
             }
         });
 
-        if virtual_texts.len() == 0 {
+        if virtual_texts.is_empty() {
             return Ok(());
         }
 

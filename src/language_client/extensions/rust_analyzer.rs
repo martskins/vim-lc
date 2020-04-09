@@ -15,6 +15,19 @@ struct RustAnalyzerSourceChanges {
     workspace_edit: WorkspaceEdit,
 }
 
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+// This type is defined in rust-analyzer. Should this ever cause any issues we could consider
+// importing the crate directly and using it from there.
+struct Runnable {
+    pub range: Range,
+    pub label: String,
+    pub bin: String,
+    pub args: Vec<String>,
+    pub extra_args: Vec<String>,
+    pub cwd: Option<String>,
+}
+
 impl<T> LanguageClient<T>
 where
     T: RPCClient + Clone + Send + Sync + 'static,
@@ -57,12 +70,9 @@ where
             return Ok(());
         }
 
-        // TODO: clean up these unwraps
         let args = arguments.unwrap().first().cloned().unwrap();
-        let args: std::collections::HashMap<String, Value> = serde_json::from_value(args)?;
-        let bin = args.get("bin").unwrap();
-        let args: Vec<String> = serde_json::from_value(args.get("args").cloned().unwrap())?;
-        let cmd = format!("term {} {}", bin, args.join(" "));
+        let args: Runnable = serde_json::from_value(args)?;
+        let cmd = format!("term {} {}", args.bin, args.args.join(" "));
         let command = cmd.replace('"', "");
         VIM.execute(vec![vim::ExecuteParams {
             action: "execute".into(),

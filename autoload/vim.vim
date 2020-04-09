@@ -5,8 +5,7 @@ function! vim#start() abort
     return 0
   endif
 
-  let l:binpath = '/home/martin/dev/vlc/target/debug/vlc'
-
+  let l:binpath = g:vlc#binpath
   if executable(l:binpath) != 1
     echoerr 'binary ' . l:binpath . ' not found'
     return 0

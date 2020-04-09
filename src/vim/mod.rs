@@ -48,7 +48,7 @@ impl FZFItem for Action {
     }
 
     fn text(&self) -> String {
-        format!("{}", self.text)
+        self.text.clone()
     }
 }
 

@@ -9,7 +9,7 @@ impl<T> LanguageClient<T>
 where
     T: RPCClient + Clone + Send + Sync + 'static,
 {
-    pub(super) async fn run_command(&self, cmd: Command) -> Fallible<()> {
+    pub(super) async fn run_command(&self, language_id: &str, cmd: Command) -> Fallible<()> {
         match cmd.command.as_str() {
             "rust-analyzer.applySourceChange" => {
                 self.rust_analyzer_apply_source_change(cmd.arguments)?
@@ -18,7 +18,7 @@ where
             "rust-analyzer.run" | "rust-analyzer.runSingle" => {
                 self.rust_analyzer_run(cmd.arguments)?
             }
-            _ => {}
+            _ => self.workspace_execute_command(language_id, cmd).await?,
         }
 
         Ok(())

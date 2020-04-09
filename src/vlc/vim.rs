@@ -6,8 +6,8 @@ use crate::CONFIG;
 use crate::LANGUAGE_CLIENT;
 use crate::VIM;
 use failure::Fallible;
-
 use futures::executor::block_on;
+
 impl<T> VLC<T>
 where
     T: RPCClient,
