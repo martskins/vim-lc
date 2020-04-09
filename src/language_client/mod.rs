@@ -462,6 +462,41 @@ where
         client.notify(notification::DidOpenTextDocument::METHOD, input)
     }
 
+    pub async fn resolve_code_lens_action(
+        &self,
+        input: vim::ResolveCodeActionParams,
+    ) -> Fallible<()> {
+        log::debug!("started LanguageClient::resolve_code_lens_action");
+        let state = self.state.read().await;
+        let code_lens = state.code_lens.get(&input.position.text_document).cloned();
+        drop(state);
+
+        let code_lens: Vec<lsp_types::Command> = code_lens
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|x| {
+                let parts: Vec<&str> = input.selection.split(": ").collect();
+                x.command.is_some()
+                    && x.range.start.line + 1 == input.position.position.line
+                    && x.command.as_ref().unwrap().title == parts[1]
+                    && x.command.as_ref().unwrap().command == parts[0]
+            })
+            .map(|x| x.command.clone().unwrap())
+            .collect();
+
+        if code_lens.is_empty() {
+            return Ok(());
+        }
+
+        // this should always have at most one item
+        let code_lens = code_lens.first().cloned().unwrap();
+        if let Err(err) = self.run_command(code_lens).await {
+            log::error!("{}", err);
+        }
+
+        Ok(())
+    }
+
     pub async fn resolve_code_action(&self, input: vim::ResolveCodeActionParams) -> Fallible<()> {
         log::debug!("started LanguageClient::resolve_code_action");
         let state = self.state.read().await;

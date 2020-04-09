@@ -11,7 +11,7 @@ pub trait FZFItem {
 
 impl FZFItem for lsp_types::CodeLens {
     fn sink() -> String {
-        "s:resolveCodeAction".into()
+        "s:resolveCodeLensAction".into()
     }
 
     fn text(&self) -> String {

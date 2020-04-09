@@ -166,7 +166,7 @@ function! s:fzfLocationSink(selection) abort
   call cursor(l:line, 0)
 endfunction
 
-function! s:resolveCodeAction(selection) abort
+function! s:resolveAction(method, selection) abort
   let l:line = line('.')
   let l:col = col('.')
   let l:path = expand('%:p')
@@ -176,6 +176,15 @@ function! s:resolveCodeAction(selection) abort
         \'line': l:line,
         \'column': l:col
         \}
-  call rpc#call('resolveCodeAction', l:params)
+  call rpc#call(a:method, l:params)
+endfunction
+
+function! s:resolveCodeLensAction(selection) abort
+  call s:resolveAction('resolveCodeLensAction', a:selection)
+endfunction
+
+
+function! s:resolveCodeAction(selection) abort
+  call s:resolveAction('resolveCodeAction', a:selection)
 endfunction
 

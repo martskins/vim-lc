@@ -14,6 +14,10 @@ where
             "rust-analyzer.applySourceChange" => {
                 self.rust_analyzer_apply_source_change(cmd.arguments)?
             }
+            "rust-analyzer.showReferences" => self.rust_analyzer_show_references(cmd.arguments)?,
+            "rust-analyzer.run" | "rust-analyzer.runSingle" => {
+                self.rust_analyzer_run(cmd.arguments)?
+            }
             _ => {}
         }
 

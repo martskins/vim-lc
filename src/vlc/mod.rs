@@ -416,6 +416,12 @@ where
                     self.code_lens_action(params).await?;
                 }
                 // not part of LSP
+                "resolveCodeLensAction" => {
+                    let params: ResolveCodeActionParams =
+                        serde_json::from_value(msg.params.into())?;
+                    LANGUAGE_CLIENT.resolve_code_lens_action(params).await?;
+                }
+                // not part of LSP
                 "resolveCodeAction" => {
                     let params: ResolveCodeActionParams =
                         serde_json::from_value(msg.params.into())?;

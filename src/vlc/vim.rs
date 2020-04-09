@@ -217,7 +217,7 @@ where
     }
 
     /// evaluates multiple commands and returns a vec of values.
-    fn execute(&self, cmd: Vec<ExecuteParams>) -> Fallible<Vec<serde_json::Value>> {
+    pub fn execute(&self, cmd: Vec<ExecuteParams>) -> Fallible<Vec<serde_json::Value>> {
         let client = VIM.client.clone();
         let res: Vec<serde_json::Value> = client.call("execute", cmd)?;
         Ok(res)
