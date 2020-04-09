@@ -152,6 +152,9 @@ function! rpc#read(job, lines, event) abort
       for l:changes in l:params
         call vim#applyChanges(l:changes)
       endfor
+    " opens and populates a floating window
+    elseif l:method ==# 'showFloatingWindow'
+      return vim#showFloatingWindow(l:params)
     " shows a list of items in fzf
     elseif l:method ==# 'showFZF'
       return vim#showFZF(l:params['items'], l:params['sink'])

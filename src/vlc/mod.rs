@@ -3,6 +3,7 @@ mod vim;
 use crate::rpc;
 use crate::rpc::RPCClient;
 use crate::vim::*;
+use crate::CONFIG;
 use crate::LANGUAGE_CLIENT;
 use failure::Fallible;
 use tokio::io::{stdin, stdout, BufReader};
@@ -39,12 +40,14 @@ where
     T: RPCClient,
 {
     pub async fn run(&self) -> Fallible<()> {
-        loop {
-            let message = self.client.read()?;
+        let rx = self.client.get_reader();
+        for message in rx.iter() {
             if let Err(err) = self.handle_message(message).await {
                 log::error!("{}", err);
             }
         }
+
+        Ok(())
     }
 
     async fn initialize(&self, params: BufInfo) -> Fallible<()> {
@@ -77,15 +80,22 @@ where
     }
 
     async fn did_open(&self, params: TextDocumentContent) -> Fallible<()> {
+        if !CONFIG.features.did_open {
+            return Ok(());
+        }
+
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT
             .text_document_did_open(&language_id, params.clone())
             .await?;
-        self.code_lens(params.into()).await?;
         Ok(())
     }
 
     async fn did_save(&self, params: TextDocumentContent) -> Fallible<()> {
+        if !CONFIG.features.did_save {
+            return Ok(());
+        }
+
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT
             .text_document_did_save(&language_id, params.clone())
@@ -95,6 +105,10 @@ where
     }
 
     async fn did_close(&self, params: TextDocumentContent) -> Fallible<()> {
+        if !CONFIG.features.did_close {
+            return Ok(());
+        }
+
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT
             .text_document_did_close(&language_id, params)
@@ -103,15 +117,22 @@ where
     }
 
     async fn did_change(&self, params: TextDocumentContent) -> Fallible<()> {
+        if !CONFIG.features.did_change {
+            return Ok(());
+        }
+
         let language_id = params.language_id.clone();
         LANGUAGE_CLIENT
             .text_document_did_change(&language_id, params.clone())
             .await?;
-        self.code_lens(params.into()).await?;
         Ok(())
     }
 
     async fn implementation(&self, params: CursorPosition) -> Fallible<()> {
+        if !CONFIG.features.implementation {
+            return Ok(());
+        }
+
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
             .text_document_implementation(&language_id, params)
@@ -139,6 +160,10 @@ where
     }
 
     async fn hover(&self, params: CursorPosition) -> Fallible<()> {
+        if !CONFIG.features.hover {
+            return Ok(());
+        }
+
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
             .text_document_hover(&language_id, params)
@@ -152,6 +177,10 @@ where
     }
 
     async fn references(&self, params: CursorPosition) -> Fallible<()> {
+        if !CONFIG.features.references {
+            return Ok(());
+        }
+
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
             .text_document_references(&language_id, params)
@@ -176,6 +205,10 @@ where
     }
 
     async fn code_action(&self, params: SelectionRange) -> Fallible<()> {
+        if !CONFIG.features.code_action {
+            return Ok(());
+        }
+
         let language_id = params.language_id.clone();
         let response: Vec<lsp_types::CodeActionOrCommand> = LANGUAGE_CLIENT
             .text_document_code_action(&language_id, params)
@@ -198,11 +231,15 @@ where
             })
             .collect();
 
-        self.show_in_fzf(actions.clone())?;
+        self.show_in_fzf(actions)?;
         Ok(())
     }
 
     async fn code_lens(&self, params: TextDocumentIdentifier) -> Fallible<()> {
+        if !CONFIG.features.code_lens {
+            return Ok(());
+        }
+
         let language_id = params.language_id.clone();
         let response: Vec<lsp_types::CodeLens> = LANGUAGE_CLIENT
             .text_document_code_lens(&language_id, params)
@@ -238,6 +275,10 @@ where
         message_id: &jsonrpc_core::Id,
         params: CursorPosition,
     ) -> Fallible<()> {
+        if !CONFIG.features.completion {
+            return Ok(());
+        }
+
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
             .text_document_completion(&language_id, params)
@@ -274,6 +315,10 @@ where
     }
 
     async fn definition(&self, params: CursorPosition) -> Fallible<()> {
+        if !CONFIG.features.definition {
+            return Ok(());
+        }
+
         let language_id = params.language_id.clone();
         let response = LANGUAGE_CLIENT
             .text_document_definition(&language_id, params)

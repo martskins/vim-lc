@@ -41,21 +41,29 @@ impl Client {
         let (reader_tx, reader_rx) = crossbeam::unbounded();
         {
             let server_id = server_id.clone();
-            std::thread::spawn(move || {
-                let mut rt = tokio::runtime::Runtime::new().unwrap();
-                rt.block_on(loop_read::<I>(server_id, reader, pending_rx, reader_tx))
+            tokio::spawn(async move {
+                loop_read(server_id, reader, pending_rx, reader_tx)
+                    .await
                     .unwrap();
             });
+            // std::thread::spawn(move || {
+            //     let mut rt = tokio::runtime::Runtime::new().unwrap();
+            //     rt.block_on(loop_read(server_id, reader, pending_rx, reader_tx))
+            //         .unwrap();
+            // });
         }
 
         let (writer_tx, writer_rx) = crossbeam::bounded(1);
         {
             let server_id = server_id.clone();
-            std::thread::spawn(move || {
-                let mut rt = tokio::runtime::Runtime::new().unwrap();
-                rt.block_on(loop_write::<O>(server_id, writer, writer_rx))
-                    .unwrap();
+            tokio::spawn(async move {
+                loop_write(server_id, writer, writer_rx).await.unwrap();
             });
+            // std::thread::spawn(move || {
+            //     let mut rt = tokio::runtime::Runtime::new().unwrap();
+            //     rt.block_on(loop_write(server_id, writer, writer_rx))
+            //         .unwrap();
+            // });
         }
 
         Self {
@@ -142,8 +150,6 @@ where
                 sender.send(message.clone())?;
             }
         }
-
-        log::debug!("sent message {:?}\n", message_id);
     }
 }
 
@@ -163,9 +169,8 @@ impl RPCClient for Client {
         Ok(())
     }
 
-    fn read(&self) -> Fallible<Message> {
-        let message = self.reader_rx.recv()?;
-        Ok(message)
+    fn get_reader(&self) -> Receiver<Message> {
+        self.reader_rx.clone()
     }
 
     fn notify<M>(&self, method: &str, message: M) -> Fallible<()>

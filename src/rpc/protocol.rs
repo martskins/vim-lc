@@ -4,7 +4,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 
 pub trait RPCClient {
-    fn read(&self) -> Fallible<Message>;
+    fn get_reader(&self) -> crossbeam::Receiver<Message>;
     fn reply_success(&self, id: &jsonrpc_core::Id, message: serde_json::Value) -> Fallible<()>;
     fn call<M, R>(&self, method: &str, message: M) -> Fallible<R>
     where

@@ -14,9 +14,11 @@ use std::str::FromStr;
 
 lazy_static! {
     pub static ref VIM: vlc::VLC<rpc::Client> = vlc::VLC::default();
-    pub static ref LANGUAGE_CLIENT: LanguageClient<rpc::Client> = LanguageClient::new();
-    pub static ref CONFIG: Config =
-        block_on(Config::parse("/home/martin/Desktop/config.toml")).unwrap();
+    pub static ref LANGUAGE_CLIENT: LanguageClient<rpc::Client> = LanguageClient::default();
+    pub static ref CONFIG: Config = block_on(Config::parse(
+        shellexpand::tilde("~/.vlc/config.toml").as_ref()
+    ))
+    .unwrap();
 }
 
 #[tokio::main]

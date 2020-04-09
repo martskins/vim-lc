@@ -8,9 +8,30 @@ use tokio::io::AsyncReadExt;
 pub struct Config {
     pub log: Log,
     pub diagnostics: Diagnostics,
+    pub hover: Hover,
     pub locations: Locations,
     pub servers: HashMap<String, String>,
     pub features: FeatureFlags,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub enum DisplayMode {
+    #[serde(rename = "preview")]
+    Preview,
+    #[serde(rename = "floating_window")]
+    FloatingWindow,
+}
+
+impl Default for DisplayMode {
+    fn default() -> Self {
+        DisplayMode::Preview
+    }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct Hover {
+    pub display_mode: DisplayMode,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -29,6 +50,8 @@ pub struct FeatureFlags {
     pub rename: bool,
     pub did_close: bool,
     pub did_open: bool,
+    pub did_change: bool,
+    pub did_save: bool,
 }
 
 impl Default for FeatureFlags {
@@ -46,6 +69,8 @@ impl Default for FeatureFlags {
             rename: true,
             did_close: true,
             did_open: true,
+            did_change: true,
+            did_save: true,
         }
     }
 }
@@ -60,7 +85,7 @@ pub struct Log {
 impl Default for Log {
     fn default() -> Self {
         Log {
-            output: "/tmp/vlc.log".into(),
+            output: shellexpand::tilde("~/.vlc/vlc.log").into(),
             // TODO: this should be error as a default
             level: "error".into(),
         }
@@ -81,11 +106,15 @@ impl Default for Locations {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Diagnostics {
     pub auto_open: bool,
+    pub show_signs: bool,
 }
 
 impl Default for Diagnostics {
     fn default() -> Self {
-        Diagnostics { auto_open: true }
+        Diagnostics {
+            auto_open: true,
+            show_signs: false,
+        }
     }
 }
 

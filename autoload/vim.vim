@@ -113,7 +113,7 @@ endfunction
 
 function! vim#showPreview(params)
   let l:filetype = a:params['filetype']
-  let l:lines = split(a:params['text'], "\n")
+  let l:lines = a:params['lines']
 
   let l:name = 'vim-lc'
   let l:command = "silent! pedit! +setlocal\\ " .
@@ -127,6 +127,28 @@ function! vim#showPreview(params)
   else
       call setbufline(l:name, 1, l:lines)
   endif
+endfunction
+
+function! vim#showFloatingWindow(params)
+  let l:lines = a:params['lines']
+  let width = min([&columns - 4, max([80, &columns - 20])])
+  let height = len(l:lines) + 1
+  let top = ((&lines - height) / 2) - 1
+  let left = (&columns - width) / 2
+  let opts = {
+        \ 'relative': 'editor',
+        \ 'row': top,
+        \ 'col': left,
+        \ 'width': width,
+        \ 'height': height,
+        \ 'style': 'minimal'
+        \}
+
+  set winhl=NormalNC:Floating
+  let l:textbuf = nvim_create_buf(v:false, v:true)
+  call nvim_open_win(l:textbuf, v:true, opts)
+  setlocal filetype=markdown
+  call append(0, l:lines)
 endfunction
 
 function! vim#showFZF(items, sink)

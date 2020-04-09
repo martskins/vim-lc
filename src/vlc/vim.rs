@@ -1,6 +1,8 @@
 use super::VLC;
+use crate::config::*;
 use crate::rpc::RPCClient;
 use crate::vim::*;
+use crate::CONFIG;
 use crate::LANGUAGE_CLIENT;
 use crate::VIM;
 use failure::Fallible;
@@ -83,8 +85,10 @@ where
             diagnostics.clone().into_iter().map(|l| l.into()).collect();
         self.set_quickfix(quickfix_list)?;
 
-        let signs: Vec<Sign> = diagnostics.into_iter().map(|l| l.into()).collect();
-        self.set_signs(signs)?;
+        if CONFIG.diagnostics.show_signs {
+            let signs: Vec<Sign> = diagnostics.into_iter().map(|l| l.into()).collect();
+            self.set_signs(signs)?;
+        }
 
         Ok(())
     }
@@ -111,26 +115,42 @@ where
             },
         };
 
-        let text = match input.contents {
+        let lines = match input.contents {
             lsp_types::HoverContents::Scalar(ref c) => match c.clone() {
-                lsp_types::MarkedString::String(s) => s,
-                lsp_types::MarkedString::LanguageString(s) => s.value,
+                lsp_types::MarkedString::String(s) => s.split('\n').map(|s| s.to_owned()).collect(),
+                lsp_types::MarkedString::LanguageString(s) => {
+                    s.value.split('\n').map(|s| s.to_owned()).collect()
+                }
             },
             lsp_types::HoverContents::Array(ref c) => {
                 if c.is_empty() {
-                    String::new()
+                    vec![]
                 } else {
                     match c[0].clone() {
-                        lsp_types::MarkedString::String(s) => s,
-                        lsp_types::MarkedString::LanguageString(s) => s.value,
+                        lsp_types::MarkedString::String(s) => {
+                            s.split('\n').map(|s| s.to_owned()).collect()
+                        }
+                        lsp_types::MarkedString::LanguageString(s) => {
+                            s.value.split('\n').map(|s| s.to_owned()).collect()
+                        }
                     }
                 }
             }
-            lsp_types::HoverContents::Markup(c) => c.value,
+            lsp_types::HoverContents::Markup(c) => {
+                c.value.split('\n').map(|s| s.to_owned()).collect()
+            }
         };
 
-        let client = VIM.client.clone();
-        client.notify("showPreview", PreviewContent { filetype, text })?;
+        match CONFIG.hover.display_mode {
+            DisplayMode::Preview => {
+                let client = VIM.client.clone();
+                client.notify("showPreview", PreviewContent { filetype, lines })?;
+            }
+            DisplayMode::FloatingWindow => {
+                let client = VIM.client.clone();
+                client.notify("showFloatingWindow", PreviewContent { filetype, lines })?;
+            }
+        }
         Ok(())
     }
 

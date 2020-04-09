@@ -172,7 +172,7 @@ pub fn completion_item_kind(input: Option<lsp_types::CompletionItemKind>) -> Opt
 #[derive(Debug, Serialize)]
 pub struct PreviewContent {
     pub filetype: String,
-    pub text: String,
+    pub lines: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
