@@ -42,17 +42,52 @@ function! vim#eval(params) abort
 endfunction
 
 function! vim#applyChanges(changes) abort
-  execute 'edit' a:changes['text_document']
+  try
+    execute 'edit' a:changes['text_document']
+  catch
+  endtry
+
   for change in a:changes['changes']
-    let l:start = change['start']['line'] + 1
-    let l:end = change['end']['line'] + 1
-    execute l:start . ',' . l:end . 'd'
-    let l:pos = getcurpos()
-    let l:cursorline = l:pos[1] - 1
-    let l:cursorcol = l:pos[2]
-    call cursor(l:cursorline, l:cursorcol)
-    echom change['lines'][0]
-    call append(line('.'), change['lines'])
+    let l:start_line = change['start']['line'] + 1
+    let l:start_col = change['start']['column'] + 1
+
+    let l:end_line = change['end']['line'] + 1
+    let l:end_col = change['end']['column'] + 1
+
+    call cursor(l:start_line, l:start_col)
+
+    if l:start_line < l:end_line
+      " if the change happens in multiple lines
+      " delete the first line from start_col to end
+      normal! D
+      " delete all lines in between first and last
+      " not sure why 2, but it works
+      execute l:start_line + 2 . ',' . l:end_line - 1 . 'd'
+      " delete all characters from the start of the last line to end_col
+      let cnum = 0
+      while cnum < l:end_col
+        norma! x
+        let cnum += 1
+      endwhile
+    elseif l:start_line == l:end_line
+      " if the change happens in a single line
+      " delete all characters between start_col and end_col
+      let cnum = l:start_col
+      while cnum < l:end_col
+        norma! x
+        let cnum += 1
+      endwhile
+    endif
+
+    if l:start_line < l:end_line
+      " if the change happens in multiple lines
+      " append all lines after the cursor
+      call append(line('.'), change['lines'])
+    else
+      " if change happens in a single line
+      " insert the change after the cursor
+      execute 'normal! ha' . change['lines'][0]
+    endif
   endfor
   execute ':w'
 endfunction

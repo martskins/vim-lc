@@ -1,7 +1,6 @@
-use crate::rpc::RPCClient;
+use crate::rpc;
 use crate::vim;
 use crate::LanguageClient;
-use crate::VIM;
 use failure::Fallible;
 use lsp_types::*;
 use serde::*;
@@ -28,10 +27,7 @@ struct Runnable {
     pub cwd: Option<String>,
 }
 
-impl<T> LanguageClient<T>
-where
-    T: RPCClient + Clone + Send + Sync + 'static,
-{
+impl LanguageClient<rpc::Client> {
     pub(super) fn rust_analyzer_apply_source_change(
         &self,
         arguments: Option<Vec<Value>>,
@@ -42,7 +38,7 @@ where
 
         for argument in arguments.unwrap() {
             let params: RustAnalyzerSourceChanges = serde_json::from_value(argument)?;
-            VIM.apply_edits(params.workspace_edit)?;
+            self.apply_edits(params.workspace_edit)?;
         }
 
         Ok(())
@@ -60,7 +56,7 @@ where
         let locations: Vec<Location> = serde_json::from_value(locations)?;
         let locations = locations.into_iter().map(|l| l.into()).collect();
 
-        VIM.show_locations(locations)?;
+        self.show_locations(locations)?;
         Ok(())
     }
 
@@ -74,7 +70,7 @@ where
         let args: Runnable = serde_json::from_value(args)?;
         let cmd = format!("term {} {}", args.bin, args.args.join(" "));
         let command = cmd.replace('"', "");
-        VIM.execute(vec![vim::ExecuteParams {
+        self.execute(vec![vim::ExecuteParams {
             action: "execute".into(),
             command,
         }])?;

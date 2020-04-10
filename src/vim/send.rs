@@ -1,17 +1,27 @@
-use super::VLC;
-use crate::config::*;
+pub use super::types::*;
+use crate::language_client::LanguageClient;
+use crate::rpc;
 use crate::rpc::RPCClient;
-use crate::vim::*;
-use crate::CONFIG;
-use crate::LANGUAGE_CLIENT;
-use crate::VIM;
 use failure::Fallible;
 use futures::executor::block_on;
 
-impl<T> VLC<T>
-where
-    T: RPCClient,
-{
+// #[async_trait]
+// pub trait VimSender {
+//     async fn apply_edits(&self, edits: lsp_types::WorkspaceEdit) -> Fallible<()>;
+//     async fn execute(&self, cmd: Vec<ExecuteParams>) -> Fallible<Vec<serde_json::Value>>;
+//     async fn handle_vim_message(&self, message: rpc::Message) -> Fallible<()>;
+//     async fn jump_to_location(&self, input: Location) -> Fallible<()>;
+//     async fn log_message(&self, params: lsp_types::LogMessageParams) -> Fallible<()>;
+//     async fn set_quickfix(&self, list: Vec<QuickfixItem>) -> Fallible<()>;
+//     async fn set_signs(&self, list: Vec<Sign>) -> Fallible<()>;
+//     async fn show_diagnostics(&self, diagnostics: Vec<Diagnostic>) -> Fallible<()>;
+//     async fn show_hover(&self, input: lsp_types::Hover) -> Fallible<()>;
+//     async fn show_in_fzf<I: FZFItem>(&self, items: Vec<I>) -> Fallible<()>;
+//     async fn show_locations(&self, input: Vec<Location>) -> Fallible<()>;
+//     async fn show_message(&self, message: Message) -> Fallible<()>;
+// }
+
+impl LanguageClient<rpc::Client> {
     pub fn apply_edits(&self, edits: lsp_types::WorkspaceEdit) -> Fallible<()> {
         // TODO: This is terrible, fix it some day.
         let changes: lsp_types::DocumentChanges = edits.document_changes.unwrap();
@@ -31,29 +41,26 @@ where
                             .edits
                             .into_iter()
                             .map(|e| {
-                                let mut lines: Vec<String> =
+                                let lines: Vec<String> =
                                     e.new_text.split('\n').map(|s| s.to_owned()).collect();
-                                let line_count = lines.len();
-                                let mut first_line = block_on(
-                                    LANGUAGE_CLIENT
-                                        .get_line(&text_document, e.range.start.line + 1),
-                                )
-                                .unwrap();
-                                first_line.replace_range(
-                                    e.range.start.character as usize..first_line.len(),
-                                    &lines[0],
-                                );
-                                lines[0] = first_line;
+                                // let line_count = lines.len();
+                                // let mut first_line =
+                                //     block_on(self.get_line(&text_document, e.range.start.line + 1))
+                                //         .unwrap();
+                                // first_line.replace_range(
+                                //     e.range.start.character as usize..first_line.len(),
+                                //     &lines[0],
+                                // );
+                                // lines[0] = first_line;
 
-                                let mut last_line = block_on(
-                                    LANGUAGE_CLIENT.get_line(&text_document, e.range.end.line + 1),
-                                )
-                                .unwrap();
-                                last_line.replace_range(
-                                    0..e.range.end.character as usize,
-                                    &lines[line_count - 1],
-                                );
-                                lines[line_count - 1] = last_line;
+                                // let mut last_line =
+                                //     block_on(self.get_line(&text_document, e.range.end.line + 1))
+                                //         .unwrap();
+                                // last_line.replace_range(
+                                //     0..e.range.end.character as usize,
+                                //     &lines[line_count - 1],
+                                // );
+                                // lines[line_count - 1] = last_line;
                                 BufChanges {
                                     start: Position {
                                         line: e.range.start.line,
@@ -72,7 +79,8 @@ where
                 .collect(),
             lsp_types::DocumentChanges::Operations(_) => vec![],
         };
-        self.client.notify("applyEdits", changes)?;
+
+        self.vim.notify("applyEdits", changes)?;
         Ok(())
     }
 
@@ -85,7 +93,7 @@ where
             diagnostics.clone().into_iter().map(|l| l.into()).collect();
         self.set_quickfix(quickfix_list)?;
 
-        if CONFIG.diagnostics.show_signs {
+        if self.config.diagnostics.show_signs {
             let signs: Vec<Sign> = diagnostics.into_iter().map(|l| l.into()).collect();
             self.set_signs(signs)?;
         }
@@ -141,13 +149,13 @@ where
             }
         };
 
-        match CONFIG.hover.display_mode {
-            DisplayMode::Preview => {
-                let client = VIM.client.clone();
+        match self.config.hover.display_mode {
+            crate::config::DisplayMode::Preview => {
+                let client = self.vim.clone();
                 client.notify("showPreview", PreviewContent { filetype, lines })?;
             }
-            DisplayMode::FloatingWindow => {
-                let client = VIM.client.clone();
+            crate::config::DisplayMode::FloatingWindow => {
+                let client = self.vim.clone();
                 client.notify("showFloatingWindow", PreviewContent { filetype, lines })?;
             }
         }
@@ -157,7 +165,7 @@ where
     pub fn show_in_fzf<I: FZFItem>(&self, items: Vec<I>) -> Fallible<()> {
         let text: Vec<String> = items.into_iter().map(|i| i.text()).collect();
         let sink = I::sink();
-        self.client
+        self.vim
             .notify("showFZF", serde_json::json!({"items": text, "sink": sink}))?;
 
         Ok(())
@@ -176,8 +184,7 @@ where
             .into_iter()
             .map(|l| {
                 let filename = l.filename.replace(self.root_path.as_str(), "");
-                let text = block_on(LANGUAGE_CLIENT.get_line(&filename, l.position.line))
-                    .unwrap_or_default();
+                let text = block_on(self.get_line(&filename, l.position.line)).unwrap_or_default();
                 LocationWithPreview {
                     preview: text,
                     location: Location {
@@ -209,41 +216,41 @@ where
         Ok(())
     }
 
-    /// evaluates an expression in vim and waits for the response.
-    pub fn eval<R: serde::de::DeserializeOwned>(&self, cmd: EvalParams) -> Fallible<R> {
-        let client = VIM.client.clone();
-        let res: R = client.call("eval", cmd)?;
-        Ok(res)
-    }
+    // evaluates an expression in vim and waits for the response.
+    // pub fn eval<R: serde::de::DeserializeOwned>(&self, cmd: EvalParams) -> Fallible<R> {
+    //     let client = self.vim.clone();
+    //     let res: R = client.call("eval", cmd)?;
+    //     Ok(res)
+    // }
 
-    /// evaluates multiple commands and returns a vec of values.
+    // evaluates multiple commands and returns a vec of values.
     pub fn execute(&self, cmd: Vec<ExecuteParams>) -> Fallible<Vec<serde_json::Value>> {
-        let client = VIM.client.clone();
+        let client = self.vim.clone();
         let res: Vec<serde_json::Value> = client.call("execute", cmd)?;
         Ok(res)
     }
 
-    /// evaluates an expression in vim and immediately returns.
-    pub fn call(&self, cmd: EvalParams) -> Fallible<()> {
-        let client = VIM.client.clone();
-        client.notify("call", cmd)?;
-        Ok(())
-    }
+    // evaluates an expression in vim and immediately returns.
+    // pub fn call(&self, cmd: EvalParams) -> Fallible<()> {
+    //     let client = self.vim.clone();
+    //     client.notify("call", cmd)?;
+    //     Ok(())
+    // }
 
-    fn set_signs(&self, list: Vec<Sign>) -> Fallible<()> {
-        let client = VIM.client.clone();
+    pub fn set_signs(&self, list: Vec<Sign>) -> Fallible<()> {
+        let client = self.vim.clone();
         client.notify("setSigns", list)?;
         Ok(())
     }
 
-    fn set_quickfix(&self, list: Vec<QuickfixItem>) -> Fallible<()> {
-        let client = VIM.client.clone();
+    pub fn set_quickfix(&self, list: Vec<QuickfixItem>) -> Fallible<()> {
+        let client = self.vim.clone();
         client.notify("setQuickfix", list)?;
         Ok(())
     }
 
     pub fn show_message(&self, message: Message) -> Fallible<()> {
-        let client = VIM.client.clone();
+        let client = self.vim.clone();
         client.notify("showMessage", message)?;
         Ok(())
     }
@@ -252,4 +259,35 @@ where
         log::debug!("{}", params.message);
         Ok(())
     }
+}
+
+#[tokio::test(core_threads = 8)]
+async fn test_concurrency_issue() -> Fallible<()> {
+    use futures::executor::block_on;
+    use std::str::FromStr;
+
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "[{}][{}] {}",
+                record.target(),
+                record.level(),
+                message
+            ))
+        })
+        .level(log::LevelFilter::from_str("ERROR").unwrap())
+        .chain(fern::log_file("/home/martin/Desktop/vlc.log").unwrap())
+        .apply()
+        .unwrap();
+
+    let vim = LanguageClient::default();
+    let v = vim.clone();
+    tokio::spawn(async move {
+        block_on(v.run()).unwrap();
+    });
+
+    vim.start_server("go").await?;
+    vim.initialize("go").await?;
+    vim.initialized("go").await?;
+    Ok(())
 }
