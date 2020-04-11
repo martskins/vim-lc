@@ -9,10 +9,18 @@ use config::Config;
 use failure::Fallible;
 use language_client::LanguageClient;
 use std::str::FromStr;
+use structopt::StructOpt;
+
+#[derive(StructOpt)]
+struct Opts {
+    #[structopt(short, long, default_value = "~/.vlc/config.toml")]
+    config: String,
+}
 
 #[tokio::main]
 async fn main() -> Fallible<()> {
-    let config = Config::parse(shellexpand::tilde("~/.vlc/config.toml").as_ref()).await?;
+    let opts = Opts::from_args();
+    let config = Config::parse(shellexpand::tilde(&opts.config).as_ref()).await?;
     fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
@@ -28,6 +36,5 @@ async fn main() -> Fallible<()> {
         .unwrap();
 
     let lc: LanguageClient<rpc::Client> = language_client::LanguageClient::new(config);
-    lc.run().await?;
-    Ok(())
+    lc.run().await
 }

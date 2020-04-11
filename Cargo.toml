@@ -19,3 +19,4 @@ jsonrpc-core = "14.0.5"            # Transport agnostic rust implementation of J
 toml = "0.5.6"              # A native Rust encoder and decoder of TOML-formatted files and streams. Provides implementations of …
 fern = "0.6.0"                         # Simple, efficient logging
 shellexpand = "2.0.0"    # Shell-like expansions in strings
+structopt = "0.3.13"               # Parse command line argument by defining a struct.
