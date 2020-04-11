@@ -1,10 +1,14 @@
 mod rust_analyzer;
 
+use crate::rpc::RPCClient;
 use crate::LanguageClient;
 use failure::Fallible;
 use lsp_types::*;
 
-impl LanguageClient<crate::rpc::Client> {
+impl<T> LanguageClient<T>
+where
+    T: RPCClient + Send + Sync + Clone + 'static,
+{
     pub async fn run_command(&self, language_id: &str, cmd: Command) -> Fallible<()> {
         match cmd.command.as_str() {
             "rust-analyzer.applySourceChange" => {

@@ -1,10 +1,13 @@
 use crate::language_client::LanguageClient;
-use crate::rpc;
+use crate::rpc::RPCClient;
 use crate::vim;
 use failure::Fallible;
 use lsp_types::*;
 
-impl LanguageClient<rpc::Client> {
+impl<T> LanguageClient<T>
+where
+    T: RPCClient + Send + Sync + Clone + 'static,
+{
     pub fn progress(&self, params: lsp_types::ProgressParams) -> Fallible<()> {
         let message = match params.value {
             ProgressParamsValue::WorkDone(wd) => match wd {

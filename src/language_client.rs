@@ -36,11 +36,14 @@ where
     }
 }
 
-impl Default for LanguageClient<rpc::Client> {
+impl<T> Default for LanguageClient<T>
+where
+    T: RPCClient + Send + Sync + Clone + 'static,
+{
     fn default() -> Self {
         let clients = Arc::new(RwLock::new(HashMap::new()));
         let state = Arc::new(RwLock::new(State::default()));
-        let vim = rpc::Client::new(
+        let vim = T::new(
             rpc::ServerID::VIM,
             BufReader::new(tokio::io::stdin()),
             tokio::io::stdout(),
@@ -59,7 +62,10 @@ impl Default for LanguageClient<rpc::Client> {
 }
 
 #[allow(deprecated)]
-impl LanguageClient<rpc::Client> {
+impl<T> LanguageClient<T>
+where
+    T: RPCClient + Send + Sync + Clone + 'static,
+{
     pub fn new(config: Config) -> Self {
         let mut lc = LanguageClient::default();
         lc.config = config;
@@ -81,7 +87,7 @@ impl LanguageClient<rpc::Client> {
             .expect("could not run command");
 
         // let process_id = cmd.id() as u64;
-        let client = rpc::Client::new(
+        let client = T::new(
             rpc::ServerID::LanguageServer,
             BufReader::new(cmd.stdout.unwrap()),
             cmd.stdin.unwrap(),
@@ -146,7 +152,7 @@ impl LanguageClient<rpc::Client> {
         Ok(code_lens)
     }
 
-    pub async fn get_client(&self, language_id: &str) -> Fallible<rpc::Client> {
+    pub async fn get_client(&self, language_id: &str) -> Fallible<T> {
         let client = self.clients.read().await;
         let client = client.get(language_id).cloned();
         if client.is_none() {

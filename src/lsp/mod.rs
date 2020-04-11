@@ -4,9 +4,13 @@ mod send;
 
 use crate::language_client::LanguageClient;
 use crate::rpc;
+use crate::rpc::RPCClient;
 use failure::Fallible;
 
-impl LanguageClient<rpc::Client> {
+impl<T> LanguageClient<T>
+where
+    T: RPCClient + Send + Sync + Clone + 'static,
+{
     // handles messages sent from vim to the language client
     pub async fn handle_message(&self, message: rpc::Message) -> Fallible<()> {
         match message {

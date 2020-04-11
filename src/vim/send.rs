@@ -1,6 +1,5 @@
 pub use super::types::*;
 use crate::language_client::LanguageClient;
-use crate::rpc;
 use crate::rpc::RPCClient;
 use failure::Fallible;
 use futures::executor::block_on;
@@ -21,7 +20,10 @@ use futures::executor::block_on;
 //     async fn show_message(&self, message: Message) -> Fallible<()>;
 // }
 
-impl LanguageClient<rpc::Client> {
+impl<T> LanguageClient<T>
+where
+    T: RPCClient + Send + Sync + Clone + 'static,
+{
     pub fn apply_edits(&self, edits: lsp_types::WorkspaceEdit) -> Fallible<()> {
         // TODO: This is terrible, fix it some day.
         let changes: lsp_types::DocumentChanges = edits.document_changes.unwrap();

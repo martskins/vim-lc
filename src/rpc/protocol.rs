@@ -4,6 +4,10 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 
 pub trait RPCClient {
+    fn new<I, O>(server_id: ServerID, reader: I, writer: O) -> Self
+    where
+        I: tokio::io::AsyncBufReadExt + Unpin + Send + 'static,
+        O: tokio::io::AsyncWrite + Unpin + Send + 'static;
     fn get_reader(&self) -> crossbeam::Receiver<Message>;
     fn reply_success(&self, id: &jsonrpc_core::Id, message: serde_json::Value) -> Fallible<()>;
     fn call<M, R>(&self, method: &str, message: M) -> Fallible<R>

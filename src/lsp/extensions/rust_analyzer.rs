@@ -1,4 +1,4 @@
-use crate::rpc;
+use crate::rpc::RPCClient;
 use crate::vim;
 use crate::LanguageClient;
 use failure::Fallible;
@@ -27,7 +27,10 @@ struct Runnable {
     pub cwd: Option<String>,
 }
 
-impl LanguageClient<rpc::Client> {
+impl<T> LanguageClient<T>
+where
+    T: RPCClient + Send + Sync + Clone + 'static,
+{
     pub(super) fn rust_analyzer_apply_source_change(
         &self,
         arguments: Option<Vec<Value>>,

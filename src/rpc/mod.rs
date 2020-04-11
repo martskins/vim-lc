@@ -31,51 +31,6 @@ impl Clone for Client {
     }
 }
 
-impl Client {
-    pub fn new<I, O>(server_id: ServerID, reader: I, writer: O) -> Self
-    where
-        I: AsyncBufReadExt + Unpin + Send + 'static,
-        O: AsyncWrite + Unpin + Send + 'static,
-    {
-        let (pending_tx, pending_rx) = crossbeam::bounded(1);
-        let (reader_tx, reader_rx) = crossbeam::unbounded();
-        {
-            let server_id = server_id.clone();
-            tokio::spawn(async move {
-                loop_read(server_id, reader, pending_rx, reader_tx)
-                    .await
-                    .unwrap();
-            });
-            // std::thread::spawn(move || {
-            //     let mut rt = tokio::runtime::Runtime::new().unwrap();
-            //     rt.block_on(loop_read(server_id, reader, pending_rx, reader_tx))
-            //         .unwrap();
-            // });
-        }
-
-        let (writer_tx, writer_rx) = crossbeam::bounded(1);
-        {
-            let server_id = server_id.clone();
-            tokio::spawn(async move {
-                loop_write(server_id, writer, writer_rx).await.unwrap();
-            });
-            // std::thread::spawn(move || {
-            //     let mut rt = tokio::runtime::Runtime::new().unwrap();
-            //     rt.block_on(loop_write(server_id, writer, writer_rx))
-            //         .unwrap();
-            // });
-        }
-
-        Self {
-            server_id,
-            reader_rx,
-            writer_tx,
-            pending_tx,
-            id: Arc::new(AtomicU64::default()),
-        }
-    }
-}
-
 async fn loop_write<O>(
     server_id: ServerID,
     mut writer: O,
@@ -154,6 +109,49 @@ where
 }
 
 impl RPCClient for Client {
+    fn new<I, O>(server_id: ServerID, reader: I, writer: O) -> Self
+    where
+        I: AsyncBufReadExt + Unpin + Send + 'static,
+        O: AsyncWrite + Unpin + Send + 'static,
+    {
+        let (pending_tx, pending_rx) = crossbeam::bounded(1);
+        let (reader_tx, reader_rx) = crossbeam::unbounded();
+        {
+            let server_id = server_id.clone();
+            tokio::spawn(async move {
+                loop_read(server_id, reader, pending_rx, reader_tx)
+                    .await
+                    .unwrap();
+            });
+            // std::thread::spawn(move || {
+            //     let mut rt = tokio::runtime::Runtime::new().unwrap();
+            //     rt.block_on(loop_read(server_id, reader, pending_rx, reader_tx))
+            //         .unwrap();
+            // });
+        }
+
+        let (writer_tx, writer_rx) = crossbeam::bounded(1);
+        {
+            let server_id = server_id.clone();
+            tokio::spawn(async move {
+                loop_write(server_id, writer, writer_rx).await.unwrap();
+            });
+            // std::thread::spawn(move || {
+            //     let mut rt = tokio::runtime::Runtime::new().unwrap();
+            //     rt.block_on(loop_write(server_id, writer, writer_rx))
+            //         .unwrap();
+            // });
+        }
+
+        Self {
+            server_id,
+            reader_rx,
+            writer_tx,
+            pending_tx,
+            id: Arc::new(AtomicU64::default()),
+        }
+    }
+
     fn reply_success(
         &self,
         message_id: &jsonrpc_core::Id,

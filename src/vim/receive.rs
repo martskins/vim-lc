@@ -1,6 +1,5 @@
 pub use super::types::*;
 use crate::language_client::LanguageClient;
-use crate::rpc;
 use crate::rpc::RPCClient;
 use failure::Fallible;
 
@@ -21,7 +20,10 @@ use failure::Fallible;
 //     async fn rename(&self, params: RenameParams) -> Fallible<()>;
 // }
 
-impl LanguageClient<rpc::Client> {
+impl<T> LanguageClient<T>
+where
+    T: RPCClient + Send + Sync + Clone + 'static,
+{
     pub async fn rename(&self, params: RenameParams) -> Fallible<()> {
         let language_id = params.position.language_id.clone();
         let response = self.text_document_rename(&language_id, params).await?;

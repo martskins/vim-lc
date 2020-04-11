@@ -7,7 +7,10 @@ use lsp_types::notification::Notification;
 use lsp_types::request::Request;
 use lsp_types::*;
 
-impl LanguageClient<rpc::Client> {
+impl<T> LanguageClient<T>
+where
+    T: RPCClient + Send + Sync + Clone + 'static,
+{
     pub async fn text_document_code_action(
         &self,
         language_id: &str,
