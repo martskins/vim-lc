@@ -266,17 +266,18 @@ where
 
         let res: Vec<_> = input
             .into_iter()
-            .map(|cl| {
+            .map(|cl| async {
                 let lc = self.clone();
                 let language_id = language_id.to_string();
                 if cl.data.is_none() {
                     return cl;
                 }
 
-                futures::executor::block_on(lc.code_lens_resolve(&language_id, &cl)).unwrap_or(cl)
+                lc.code_lens_resolve(&language_id, &cl).await.unwrap_or(cl)
             })
             .collect();
 
+        let res = futures::future::join_all(res).await;
         Ok(res)
     }
 }

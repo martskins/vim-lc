@@ -99,11 +99,11 @@ where
             }
             lsp_types::request::GotoDefinitionResponse::Array(ll) => {
                 let locations = ll.into_iter().map(|l| l.into()).collect();
-                vim.show_locations(locations)?
+                vim.show_locations(locations).await?
             }
             lsp_types::request::GotoDefinitionResponse::Link(ll) => {
                 let locations = ll.into_iter().map(|l| l.into()).collect();
-                vim.show_locations(locations)?
+                vim.show_locations(locations).await?
             }
         }
 
@@ -144,7 +144,7 @@ where
             }
             _ => {
                 let locations = response.into_iter().map(|l| l.into()).collect();
-                vim.show_locations(locations)?;
+                vim.show_locations(locations).await?;
             }
         }
 
@@ -295,11 +295,11 @@ where
             }
             lsp_types::request::GotoDefinitionResponse::Array(ll) => {
                 let locations = ll.into_iter().map(|l| l.into()).collect();
-                vim.show_locations(locations)?
+                vim.show_locations(locations).await?
             }
             lsp_types::request::GotoDefinitionResponse::Link(ll) => {
                 let locations = ll.into_iter().map(|l| l.into()).collect();
-                vim.show_locations(locations)?
+                vim.show_locations(locations).await?
             }
         }
 

@@ -47,7 +47,7 @@ where
         Ok(())
     }
 
-    pub(super) fn rust_analyzer_show_references(
+    pub(super) async fn rust_analyzer_show_references(
         &self,
         arguments: Option<Vec<Value>>,
     ) -> Fallible<()> {
@@ -59,7 +59,7 @@ where
         let locations: Vec<Location> = serde_json::from_value(locations)?;
         let locations = locations.into_iter().map(|l| l.into()).collect();
 
-        self.show_locations(locations)?;
+        self.show_locations(locations).await?;
         Ok(())
     }
 

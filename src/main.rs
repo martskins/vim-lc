@@ -10,7 +10,7 @@ use failure::Fallible;
 use language_client::LanguageClient;
 use std::str::FromStr;
 
-#[tokio::main(core_threads = 8)]
+#[tokio::main]
 async fn main() -> Fallible<()> {
     let config = Config::parse(shellexpand::tilde("~/.vlc/config.toml").as_ref()).await?;
     fern::Dispatch::new()

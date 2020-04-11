@@ -173,7 +173,7 @@ where
         Ok(())
     }
 
-    pub fn show_locations(&self, input: Vec<Location>) -> Fallible<()> {
+    pub async fn show_locations(&self, input: Vec<Location>) -> Fallible<()> {
         if input.is_empty() {
             return Ok(());
         }
@@ -182,11 +182,14 @@ where
             return self.jump_to_location(input.first().cloned().unwrap());
         }
 
-        let locations: Vec<LocationWithPreview> = input
+        let locations: Vec<_> = input
             .into_iter()
-            .map(|l| {
+            .map(|l| async {
                 let filename = l.filename.replace(self.root_path.as_str(), "");
-                let text = block_on(self.get_line(&filename, l.position.line)).unwrap_or_default();
+                let text = self
+                    .get_line(&filename, l.position.line)
+                    .await
+                    .unwrap_or_default();
                 LocationWithPreview {
                     preview: text,
                     location: Location {
@@ -197,6 +200,7 @@ where
             })
             .collect();
 
+        let locations = futures::future::join_all(locations).await;
         self.show_in_fzf(locations)?;
         Ok(())
     }
@@ -265,7 +269,7 @@ where
 
 #[tokio::test(core_threads = 8)]
 async fn test_concurrency_issue() -> Fallible<()> {
-    use futures::executor::block_on;
+    use crate::rpc;
     use std::str::FromStr;
 
     fern::Dispatch::new()
@@ -282,14 +286,14 @@ async fn test_concurrency_issue() -> Fallible<()> {
         .apply()
         .unwrap();
 
-    let vim = LanguageClient::default();
-    let v = vim.clone();
+    let lc: LanguageClient<rpc::Client> = LanguageClient::default();
+    let v = lc.clone();
     tokio::spawn(async move {
-        block_on(v.run()).unwrap();
+        v.run().await.unwrap();
     });
 
-    vim.start_server("go").await?;
-    vim.initialize("go").await?;
-    vim.initialized("go").await?;
+    lc.start_server("go").await?;
+    lc.initialize("go").await?;
+    lc.initialized("go").await?;
     Ok(())
 }
