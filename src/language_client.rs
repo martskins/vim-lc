@@ -61,7 +61,6 @@ where
     }
 }
 
-#[allow(deprecated)]
 impl<T> LanguageClient<T>
 where
     T: RPCClient + Send + Sync + Clone + 'static,

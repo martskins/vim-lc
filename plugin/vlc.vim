@@ -1,19 +1,25 @@
 call call('vim#start', [])
 
-nnoremap <silent>gl   :call vlc#codeLensAction()<CR>
-nnoremap <silent>ga   :call vlc#codeAction()<CR>
-vnoremap <silent>ga   :call vlc#codeAction()<CR>
-nnoremap <silent>gd   :call vlc#goToDefinition()<CR>
-nnoremap <silent>K    :call vlc#hover()<CR>
-nnoremap <silent>R    :call vlc#rename()<CR>
-nnoremap <silent>gr   :call vlc#references()<CR>
-nnoremap <silent>gi   :call vlc#implementation()<CR>
-nnoremap <c-s>        :call vlc#start()<CR>
+nnoremap <silent>gl         :call vlc#codeLensAction()<CR>
+nnoremap <silent>ga         :call vlc#codeAction()<CR>
+vnoremap <silent>ga         :call vlc#codeAction()<CR>
+nnoremap <silent>gd         :call vlc#goToDefinition()<CR>
+nnoremap <silent>K          :call vlc#hover()<CR>
+nnoremap <silent>R          :call vlc#rename()<CR>
+nnoremap <silent>gr         :call vlc#references()<CR>
+nnoremap <silent>gi         :call vlc#implementation()<CR>
+nnoremap <c-s>              :call vlc#start()<CR>
+nnoremap <c-k>              :call vlc#stop()<CR>
 
-command! VLCDefintion     call vlc#goToDefinition()
-command! VLCStop          call vlc#shutdown()
-command! VLCStart         call vim#start()
-
+command! VLCDefintion       call vlc#goToDefinition()
+command! VLCImplementation  call vlc#implementation()
+command! VLCReferences      call vlc#references()
+command! VLCCodeAction      call vlc#codeAction()
+command! VLCCodeLensAction  call vlc#codeLensAction()
+command! VLCRename          call vlc#rename()
+command! VLCHover           call vlc#hover()
+command! VLCStop            call vlc#shutdown()
+command! VLCStart           call vim#start()
 
 call sign_define('vlc_error', {
   \ 'text' : '!!',
@@ -32,24 +38,4 @@ augroup vlc
     autocmd VimLeavePre   *   call lsp#exit()
     autocmd TextChangedP  *   call lsp#didChange()
     autocmd TextChangedI  *   call lsp#didChange()
-    " autocmd FileReadPost * call vlc#didOpen()
-    " autocmd FileReadPost * call vlc#didOpen()
-    " autocmd BufReadPost * call vlc#didOpen()
-    " autocmd BufNewFile * call vlc#didOpen()
-    " autocmd TextChanged * call vlc#didOpen()
-    " autocmd BufDelete * call LanguageClient#handleBufDelete()
-    " autocmd TextChanged * call LanguageClient#handleTextChanged()
-    " autocmd TextChangedI * call LanguageClient#handleTextChanged()
-    " if exists('##TextChangedP')
-    "     autocmd TextChangedP * call LanguageClient#handleTextChanged()
-    " endif
-    " autocmd CursorMoved * call LanguageClient#handleCursorMoved()
-    " autocmd VimLeavePre * call LanguageClient#handleVimLeavePre()
-
-    " autocmd CompleteDone * call LanguageClient#handleCompleteDone()
-
-    " if get(g:, 'LanguageClient_signatureHelpOnCompleteDone', 0)
-    "     autocmd CompleteDone *
-    "                 \ call LanguageClient#textDocument_signatureHelp({}, 's:HandleOutputNothing')
-    " endif
 augroup END

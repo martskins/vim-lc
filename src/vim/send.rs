@@ -1,8 +1,8 @@
 pub use super::types::*;
+use crate::config;
 use crate::language_client::LanguageClient;
 use crate::rpc::RPCClient;
 use failure::Fallible;
-use futures::executor::block_on;
 
 // #[async_trait]
 // pub trait VimSender {
@@ -152,11 +152,11 @@ where
         };
 
         match self.config.hover.display_mode {
-            crate::config::DisplayMode::Preview => {
+            config::DisplayMode::Preview => {
                 let client = self.vim.clone();
                 client.notify("showPreview", PreviewContent { filetype, lines })?;
             }
-            crate::config::DisplayMode::FloatingWindow => {
+            config::DisplayMode::FloatingWindow => {
                 let client = self.vim.clone();
                 client.notify("showFloatingWindow", PreviewContent { filetype, lines })?;
             }

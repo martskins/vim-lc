@@ -1,5 +1,4 @@
 use crate::language_client::LanguageClient;
-use crate::rpc;
 use crate::rpc::RPCClient;
 use crate::vim;
 use failure::Fallible;
@@ -7,6 +6,7 @@ use lsp_types::notification::Notification;
 use lsp_types::request::Request;
 use lsp_types::*;
 
+#[allow(deprecated)]
 impl<T> LanguageClient<T>
 where
     T: RPCClient + Send + Sync + Clone + 'static,

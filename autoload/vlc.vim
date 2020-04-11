@@ -63,3 +63,8 @@ function! vlc#start() abort
   let s:running[&filetype] = v:true
 endfunction
 
+function! vlc#stop() abort
+  call rpc#call('shutdown', {'language_id': &filetype})
+  let s:running[&filetype] = v:false
+endfunction
+
