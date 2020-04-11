@@ -138,7 +138,7 @@ pub struct CompletionItem {
     pub info: Option<String>,
     // single letter indicating the type of completion
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub kind: Option<char>,
+    pub kind: Option<String>,
     // when non-zero case is to be ignored when comparing items to be equal; when omitted zero is
     // used, thus items that only differ in case are added
     pub icase: u8,
@@ -151,33 +151,33 @@ pub struct CompletionItem {
     pub empty: u8,
 }
 
-pub fn completion_item_kind(input: Option<lsp_types::CompletionItemKind>) -> Option<char> {
+pub fn completion_item_kind(input: Option<lsp_types::CompletionItemKind>) -> Option<String> {
     match input? {
         lsp_types::CompletionItemKind::Text => None,
-        lsp_types::CompletionItemKind::Method => Some('m'),
-        lsp_types::CompletionItemKind::Function => Some('f'),
-        lsp_types::CompletionItemKind::Constructor => Some('f'),
-        lsp_types::CompletionItemKind::Field => Some('p'),
-        lsp_types::CompletionItemKind::Variable => Some('v'),
-        lsp_types::CompletionItemKind::Class => Some('c'),
-        lsp_types::CompletionItemKind::Interface => Some('i'),
-        lsp_types::CompletionItemKind::Module => Some('m'),
-        lsp_types::CompletionItemKind::Property => Some('p'),
-        lsp_types::CompletionItemKind::Unit => None,
-        lsp_types::CompletionItemKind::Value => None,
-        lsp_types::CompletionItemKind::Enum => Some('e'),
-        lsp_types::CompletionItemKind::Keyword => Some('k'),
-        lsp_types::CompletionItemKind::Snippet => Some('s'),
-        lsp_types::CompletionItemKind::Color => None,
-        lsp_types::CompletionItemKind::File => None,
-        lsp_types::CompletionItemKind::Reference => None,
-        lsp_types::CompletionItemKind::Folder => None,
-        lsp_types::CompletionItemKind::EnumMember => None,
-        lsp_types::CompletionItemKind::Constant => None,
-        lsp_types::CompletionItemKind::Struct => None,
-        lsp_types::CompletionItemKind::Event => None,
-        lsp_types::CompletionItemKind::Operator => None,
-        lsp_types::CompletionItemKind::TypeParameter => None,
+        lsp_types::CompletionItemKind::Method => Some("method".into()),
+        lsp_types::CompletionItemKind::Function => Some("function".into()),
+        lsp_types::CompletionItemKind::Constructor => Some("function".into()),
+        lsp_types::CompletionItemKind::Field => Some("field".into()),
+        lsp_types::CompletionItemKind::Variable => Some("variable".into()),
+        lsp_types::CompletionItemKind::Class => Some("class".into()),
+        lsp_types::CompletionItemKind::Interface => Some("interface".into()),
+        lsp_types::CompletionItemKind::Module => Some("module".into()),
+        lsp_types::CompletionItemKind::Property => Some("property".into()),
+        lsp_types::CompletionItemKind::Unit => Some("unit".into()),
+        lsp_types::CompletionItemKind::Value => Some("value".into()),
+        lsp_types::CompletionItemKind::Enum => Some("enum".into()),
+        lsp_types::CompletionItemKind::Keyword => Some("keyword".into()),
+        lsp_types::CompletionItemKind::Snippet => Some("snippet".into()),
+        lsp_types::CompletionItemKind::Color => Some("color".into()),
+        lsp_types::CompletionItemKind::File => Some("file".into()),
+        lsp_types::CompletionItemKind::Reference => Some("ref".into()),
+        lsp_types::CompletionItemKind::Folder => Some("folder".into()),
+        lsp_types::CompletionItemKind::EnumMember => Some("member".into()),
+        lsp_types::CompletionItemKind::Constant => Some("const".into()),
+        lsp_types::CompletionItemKind::Struct => Some("struct".into()),
+        lsp_types::CompletionItemKind::Event => Some("event".into()),
+        lsp_types::CompletionItemKind::Operator => Some("operator".into()),
+        lsp_types::CompletionItemKind::TypeParameter => Some("type".into()),
     }
 }
 

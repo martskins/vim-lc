@@ -8,10 +8,40 @@ use tokio::io::AsyncReadExt;
 pub struct Config {
     pub log: Log,
     pub diagnostics: Diagnostics,
+    pub completion: Completion,
     pub hover: Hover,
     pub locations: Locations,
     pub servers: HashMap<String, String>,
     pub features: FeatureFlags,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Completion {
+    pub enabled: bool,
+    pub strategy: CompletionStrategy,
+}
+
+impl Default for Completion {
+    fn default() -> Self {
+        Completion {
+            enabled: true,
+            strategy: CompletionStrategy::default(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Deserialize)]
+pub enum CompletionStrategy {
+    #[serde(rename = "omnifunc")]
+    Omnifunc,
+    #[serde(rename = "ncm2")]
+    NCM2,
+}
+
+impl Default for CompletionStrategy {
+    fn default() -> Self {
+        CompletionStrategy::Omnifunc
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

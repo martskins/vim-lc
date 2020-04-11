@@ -1,7 +1,9 @@
+mod extensions;
 mod receive;
 mod send;
 mod types;
 
+use crate::config;
 use crate::language_client::LanguageClient;
 use crate::rpc::{self, RPCClient};
 use failure::Fallible;
@@ -24,6 +26,11 @@ where
                     let params: BufInfo = serde_json::from_value(msg.params.into())?;
                     self.initialize(&params.language_id).await?;
                     self.initialized(&params.language_id).await?;
+                    if self.config.completion.enabled
+                        && self.config.completion.strategy == config::CompletionStrategy::NCM2
+                    {
+                        self.register_ncm2_source(&params.language_id).await?;
+                    }
                 }
                 "shutdown" => {
                     let params: BufInfo = serde_json::from_value(msg.params.into())?;

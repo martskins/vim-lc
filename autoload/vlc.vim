@@ -68,3 +68,14 @@ function! vlc#stop() abort
   let s:running[&filetype] = v:false
 endfunction
 
+function! vlc#registerNCM2Source(params) abort
+  call ncm2#register_source({
+      \ 'name' : 'vlc',
+      \ "scope": [a:params['language_id']],
+      \ 'priority': 9,
+      \ 'subscope_enable': 1,
+      \ 'word_pattern': '[\w\-]+',
+      \ 'complete_pattern': a:params['complete_pattern'],
+      \ 'on_complete': ['ncm2#on_complete#omni', 'vlc#completion'],
+      \ })
+endfunction

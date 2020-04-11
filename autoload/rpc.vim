@@ -152,6 +152,9 @@ function! rpc#read(job, lines, event) abort
       for l:changes in l:params
         call vim#applyChanges(l:changes)
       endfor
+    " registers the completion engine with NCM2
+    elseif l:method ==# 'registerNCM2Source'
+      return vlc#registerNCM2Source(l:params)
     " opens and populates a floating window
     elseif l:method ==# 'showFloatingWindow'
       return vim#showFloatingWindow(l:params)
