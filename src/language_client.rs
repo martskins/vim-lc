@@ -15,6 +15,7 @@ use tokio::sync::RwLock;
 #[derive(Debug)]
 pub struct LanguageClient<T> {
     pub clients: Arc<RwLock<HashMap<String, T>>>,
+    pub process_ids: Arc<RwLock<HashMap<String, u64>>>,
     pub state: Arc<RwLock<State>>,
     pub root_path: String,
     pub config: Config,
@@ -28,6 +29,7 @@ where
     fn clone(&self) -> LanguageClient<T> {
         Self {
             clients: self.clients.clone(),
+            process_ids: self.process_ids.clone(),
             state: self.state.clone(),
             root_path: self.root_path.clone(),
             config: self.config.clone(),
@@ -42,6 +44,7 @@ where
 {
     fn default() -> Self {
         let clients = Arc::new(RwLock::new(HashMap::new()));
+        let process_ids = Arc::new(RwLock::new(HashMap::new()));
         let state = Arc::new(RwLock::new(State::default()));
         let vim = T::new(
             rpc::ServerID::VIM,
@@ -53,6 +56,7 @@ where
 
         Self {
             clients,
+            process_ids,
             state,
             root_path,
             config: Config::default(),
@@ -85,12 +89,17 @@ where
             .spawn()
             .expect("could not run command");
 
-        // let process_id = cmd.id() as u64;
+        let process_id = cmd.id() as u64;
         let client = T::new(
             rpc::ServerID::LanguageServer,
             BufReader::new(cmd.stdout.unwrap()),
             cmd.stdin.unwrap(),
         );
+
+        self.process_ids
+            .write()
+            .await
+            .insert(language_id.into(), process_id);
 
         self.clients
             .write()
@@ -101,7 +110,6 @@ where
         let lc = self.clone();
         tokio::spawn(async move {
             for message in rx.iter() {
-                log::error!("{:?}", message);
                 if let Err(err) = lc.handle_message(message).await {
                     log::error!("{}", err);
                 }
@@ -149,6 +157,16 @@ where
             .filter(|x| x.command.is_some())
             .collect();
         Ok(code_lens)
+    }
+
+    pub async fn get_process_id(&self, language_id: &str) -> Fallible<u64> {
+        let client = self.process_ids.read().await;
+        let client = client.get(language_id).cloned();
+        if client.is_none() {
+            failure::bail!("server not running for language {}", language_id);
+        }
+
+        Ok(client.unwrap())
     }
 
     pub async fn get_client(&self, language_id: &str) -> Fallible<T> {

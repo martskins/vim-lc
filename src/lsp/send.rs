@@ -104,9 +104,9 @@ where
 
     pub async fn initialize(&self, language_id: &str) -> Fallible<()> {
         let client = self.get_client(language_id).await?;
+        let process_id = self.get_process_id(language_id).await?;
         let message = InitializeParams {
-            // TODO: set the process id
-            process_id: Some(1234),
+            process_id: Some(process_id),
             root_path: None,
             root_uri: Some(Url::from_directory_path(std::env::current_dir()?).unwrap()),
             initialization_options: None,

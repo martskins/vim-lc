@@ -216,10 +216,8 @@ impl Into<Sign> for Diagnostic {
 
 impl Into<QuickfixItem> for Diagnostic {
     fn into(self) -> QuickfixItem {
-        let mut kind = 'W';
-        if self.severity == lsp_types::DiagnosticSeverity::Error {
-            kind = 'E';
-        }
+        let is_error = self.severity == lsp_types::DiagnosticSeverity::Error;
+        let kind = if is_error { 'E' } else { 'W' };
 
         QuickfixItem {
             bufnr: 0,

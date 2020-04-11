@@ -25,7 +25,6 @@ where
     T: RPCClient + Send + Sync + Clone + 'static,
 {
     pub fn apply_edits(&self, edits: lsp_types::WorkspaceEdit) -> Fallible<()> {
-        // TODO: This is terrible, fix it some day.
         let changes: lsp_types::DocumentChanges = edits.document_changes.unwrap();
         let changes: Vec<DocumentChanges> = match changes {
             lsp_types::DocumentChanges::Edits(edits) => edits
@@ -38,31 +37,13 @@ where
                         .to_string()
                         .replace(self.root_path.as_str(), "");
                     DocumentChanges {
-                        text_document: text_document.clone(),
+                        text_document,
                         changes: tde
                             .edits
                             .into_iter()
                             .map(|e| {
                                 let lines: Vec<String> =
                                     e.new_text.split('\n').map(|s| s.to_owned()).collect();
-                                // let line_count = lines.len();
-                                // let mut first_line =
-                                //     block_on(self.get_line(&text_document, e.range.start.line + 1))
-                                //         .unwrap();
-                                // first_line.replace_range(
-                                //     e.range.start.character as usize..first_line.len(),
-                                //     &lines[0],
-                                // );
-                                // lines[0] = first_line;
-
-                                // let mut last_line =
-                                //     block_on(self.get_line(&text_document, e.range.end.line + 1))
-                                //         .unwrap();
-                                // last_line.replace_range(
-                                //     0..e.range.end.character as usize,
-                                //     &lines[line_count - 1],
-                                // );
-                                // lines[line_count - 1] = last_line;
                                 BufChanges {
                                     start: Position {
                                         line: e.range.start.line,

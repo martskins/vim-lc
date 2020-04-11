@@ -52,7 +52,7 @@ where
         arguments: Option<Vec<Value>>,
     ) -> Fallible<()> {
         let locations = arguments
-            .unwrap_or_else(|| vec![])
+            .unwrap_or_default()
             .get(2)
             .cloned()
             .unwrap_or_else(|| Value::Array(vec![]));

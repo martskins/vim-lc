@@ -86,7 +86,6 @@ impl Default for Log {
     fn default() -> Self {
         Log {
             output: shellexpand::tilde("~/.vlc/vlc.log").into(),
-            // TODO: this should be error as a default
             level: "error".into(),
         }
     }
