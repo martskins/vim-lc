@@ -8,10 +8,16 @@ function! s:getID() abort
   return l:id
 endfunction
 
-                    " \ 'on_exit': function('rpc#handleMessage'),
-function! rpc#start(binpath) abort
+function! rpc#start(binpath, config) abort
+    let cmd = [a:binpath]
+    if a:config !=# v:null
+      let cmd = add(cmd, '--config')
+      let cmd = add(cmd, a:config)
+      echom 'INFO: Using VLC config in: ' . a:config
+    endif
+
   if has('nvim')
-    let s:job = jobstart([a:binpath], {
+    let s:job = jobstart(cmd, {
         \ 'on_stdout': function('rpc#read'),
         \ 'on_stderr': function('vim#handleError'),
       \ })

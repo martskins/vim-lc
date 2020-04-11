@@ -5,13 +5,22 @@ function! vim#start() abort
     return 0
   endif
 
-  let l:binpath = g:vlc#binpath
+  let l:binpath = expand('~/.vim/plugged/vim-lc/target/release/vlc')
+  if exists('g:vlc#binpath')
+    let l:binpath = expand(g:vlc#binpath)
+  endif
+
+  let l:config = v:null
+  if exists('g:vlc#config')
+    let l:config = expand(g:vlc#config)
+  endif
+
   if executable(l:binpath) != 1
     echoerr 'binary ' . l:binpath . ' not found'
     return 0
   endif
 
-  call rpc#start(l:binpath)
+  call rpc#start(l:binpath, l:config)
   let s:running = v:true
 endfunction
 
