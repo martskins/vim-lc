@@ -174,24 +174,42 @@ endfunction
 
 function! vim#showFloatingWindow(params)
   let l:lines = a:params['lines']
-  let width = min([&columns - 4, max([80, &columns - 20])])
+  let width = 80
   let height = len(l:lines) + 1
-  let top = ((&lines - height) / 2) - 1
-  let left = (&columns - width) / 2
+  let top = -height
+  let left = 0
   let opts = {
-        \ 'relative': 'editor',
+        \ 'relative': 'cursor',
         \ 'row': top,
         \ 'col': left,
         \ 'width': width,
-        \ 'height': height,
-        \ 'style': 'minimal'
+        \ 'height': height
         \}
 
-  set winhl=NormalNC:Floating
+  let l:pos = getcurpos()
   let l:textbuf = nvim_create_buf(v:false, v:true)
-  call nvim_open_win(l:textbuf, v:true, opts)
-  setlocal filetype=markdown
+  let win_handle = nvim_open_win(l:textbuf, v:true, opts)
   call append(0, l:lines)
+  setlocal filetype=markdown
+  setlocal buftype=nofile nobuflisted bufhidden=wipe nonumber norelativenumber signcolumn=no modifiable
+  setlocal nomodified nomodifiable
+  setlocal wrap
+  normal! gg
+  wincmd p
+
+  augroup vlc-hover
+    execute 'autocmd CursorMoved,CursorMovedI,InsertEnter <buffer> call s:closeFloatingWin('. win_handle . ', ' . string(l:pos) . ')'
+  augroup END
+endfunction
+
+function! s:closeFloatingWin(win_handle, pos) abort
+  " we do not wish to close the window is moving from inside it back to the original buffer
+  if a:pos ==# getcurpos()
+    return
+  endif
+
+  call nvim_win_close(a:win_handle, 1)
+  autocmd! vlc-hover
 endfunction
 
 function! vim#showFZF(items, sink)
