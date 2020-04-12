@@ -19,8 +19,9 @@ where
         }
 
         let opts = opts.unwrap();
+        let complete_pattern: Vec<_> = opts.trigger_characters.unwrap_or_default();
         let params = serde_json::json!({
-            "complete_pattern": opts.trigger_characters.unwrap_or_default(),
+            "complete_pattern": complete_pattern,
             "language_id": language_id,
         });
 

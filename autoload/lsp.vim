@@ -102,12 +102,12 @@ function! lsp#goToDefinition() abort
   call rpc#call('textDocument/definition', s:Position())
 endfunction
 
-function! lsp#completion(...) abort
+function! lsp#completion(callback) abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
-  return rpc#callAndWait('textDocument/completion', s:Position())
+  return rpc#callWithCallback('textDocument/completion', s:Position(), a:callback)
 endfunction
 
 "{{{ PRIVATE FUNCTIONS

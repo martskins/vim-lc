@@ -1,4 +1,5 @@
 let s:responses = {}
+let s:callbacks = {}
 let s:id = 0
 let s:job = -1
 
@@ -42,14 +43,9 @@ function! rpc#reply(id, params) abort
   call s:doSend('success', a:params, a:id)
 endfunction
 
-function! rpc#callAndWait(method, params) abort
+function! rpc#callWithCallback(method, params, callback) abort
   let l:id = rpc#call(a:method, a:params)
-
-  while !has_key(s:responses, l:id)
-    sleep 50m
-  endwhile
-
-  return s:responses[l:id]
+  let s:callbacks[l:id] = a:callback
 endfunction
 
 function! rpc#call(method, params) abort
@@ -141,12 +137,19 @@ function! rpc#read(job, lines, event) abort
     endif
 
     if has_key(l:message, 'result') || has_key(l:message, 'error')
-      let s:responses[l:message['id']] = l:message
+      let l:message_id = l:message['id']
+      let Callback = s:callbacks[l:message_id]
+      call Callback(l:message['result'])
       continue
     endif
 
     let l:method = l:message['method']
     let l:params = l:message['params']
+
+    " TODO: replace this huge elseif block with just calling the vim function with the same name as
+    " the jsonrpc method.
+    " for example:
+    "   { jsonrpc: 2.0, method: vim#showMmessage, params: [] }
 
     " shows a message in the bottom bar
     if l:method ==# 'showMessage'

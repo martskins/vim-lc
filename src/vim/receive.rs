@@ -251,28 +251,13 @@ where
             return Ok(());
         }
 
-        fn menu_from_documentation(d: Option<lsp_types::Documentation>) -> Option<String> {
-            match d {
-                Some(lsp_types::Documentation::String(s)) => Some(
-                    s.split('\n')
-                        .collect::<Vec<&str>>()
-                        .first()
-                        .cloned()
-                        .unwrap()
-                        .to_owned(),
-                ),
-                Some(lsp_types::Documentation::MarkupContent(mc)) => Some(mc.value),
-                _ => None,
-            }
-        }
-
         let list = match response.unwrap() {
             lsp_types::CompletionResponse::Array(vec) => vec
                 .into_iter()
                 .map(|i| CompletionItem {
                     word: i.label,
                     kind: completion_item_kind(i.kind),
-                    menu: menu_from_documentation(i.documentation),
+                    menu: Some(i.detail.unwrap_or_default()),
                     ..Default::default()
                 })
                 .collect(),
@@ -282,7 +267,7 @@ where
                 .map(|i| CompletionItem {
                     word: i.label,
                     kind: completion_item_kind(i.kind),
-                    menu: menu_from_documentation(i.documentation),
+                    menu: Some(i.detail.unwrap_or_default()),
                     ..Default::default()
                 })
                 .collect(),
