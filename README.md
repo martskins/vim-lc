@@ -1,7 +1,7 @@
 # VIM Language Client
 
 This plugin is an LSP client implementation for neovim (vim8 not supported yet), heavily inspired in
-`LanguageClient-neovim` (https://github.com/autozimu/LanguageClient-neovimm). The project is still
+`LanguageClient-neovim` (https://github.com/autozimu/LanguageClient-neovim). The project is still
 in early development so use at your own risk :grin:.
 
 ## DEPENDENCIES
