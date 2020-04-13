@@ -15,7 +15,7 @@ where
     pub async fn handle_message(&self, message: rpc::Message) -> Fallible<()> {
         match message {
             rpc::Message::MethodCall(msg) => match msg.method.as_str() {
-                _ => log::debug!("unhandled method call {}", msg.method),
+                _ => log::debug!("unhandled server method call {}", msg.method),
             },
             rpc::Message::Notification(msg) => match msg.method.as_str() {
                 "window/logMessage" => {
@@ -38,7 +38,7 @@ where
                         serde_json::from_value(msg.params.into())?;
                     self.window_show_message(params)?;
                 }
-                _ => log::debug!("unhandled notification {}", msg.method),
+                _ => log::debug!("unhandled server notification {}", msg.method),
             },
             rpc::Message::Output(_) => unreachable!(),
         }

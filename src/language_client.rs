@@ -119,6 +119,7 @@ where
         Ok(())
     }
 
+    /// spins up the readers for both vim and language server messages.
     pub async fn run(&self) -> Fallible<()> {
         let rx = self.vim.get_reader();
         for msg in rx.iter() {

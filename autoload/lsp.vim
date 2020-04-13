@@ -110,6 +110,24 @@ function! lsp#completion(callback) abort
   return rpc#callWithCallback('textDocument/completion', s:Position(), a:callback)
 endfunction
 
+" TODO: not sure what to do with the result of completionItem/resolve
+function! lsp#completionItemResolve(callback) abort
+  if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
+    return 0
+  endif
+
+  let l:user_data = get(v:completed_item, 'user_data', '')
+  if l:user_data ==# ''
+    return
+  endif
+
+  let l:params = {
+        \ 'position': s:Position(),
+        \ 'completion_item': v:completed_item,
+        \ }
+  return rpc#callWithCallback('completionItem/resolve', l:params, a:callback)
+endfunction
+
 "{{{ PRIVATE FUNCTIONS
 function! s:SelectionRange(...) abort
   let l:mode = mode()

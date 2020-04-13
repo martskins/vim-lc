@@ -123,7 +123,14 @@ pub struct CompletionList {
     pub words: Vec<CompletionItem>,
 }
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Deserialize)]
+pub struct CompletionItemWithContext {
+    pub completion_item: CompletionItem,
+    pub position: Position,
+    pub language_id: String,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct CompletionItem {
     // text that will be inserted, mandatory
     pub word: String,
@@ -141,14 +148,35 @@ pub struct CompletionItem {
     pub kind: Option<String>,
     // when non-zero case is to be ignored when comparing items to be equal; when omitted zero is
     // used, thus items that only differ in case are added
-    pub icase: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icase: Option<u8>,
     // when non-zero, always treat this item to be equal when comparing. Which means, "equal=1"
     // disables filtering of this item.
-    pub equal: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub equal: Option<u8>,
     // when non-zero this match will be added even when an item with the same word is already present.
-    pub dup: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dup: Option<u8>,
     // when non-zero this match will be added even when it is an empty string
-    pub empty: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub empty: Option<u8>,
+}
+
+impl Into<lsp_types::CompletionItem> for CompletionItem {
+    fn into(self) -> lsp_types::CompletionItem {
+        lsp_types::CompletionItem::new_simple(self.word, self.menu.unwrap_or_default())
+    }
+}
+
+impl From<lsp_types::CompletionItem> for CompletionItem {
+    fn from(i: lsp_types::CompletionItem) -> Self {
+        CompletionItem {
+            word: i.label,
+            kind: completion_item_kind(i.kind),
+            menu: Some(i.detail.unwrap_or_default()),
+            ..Default::default()
+        }
+    }
 }
 
 pub fn completion_item_kind(input: Option<lsp_types::CompletionItemKind>) -> Option<String> {

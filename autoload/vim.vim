@@ -173,9 +173,13 @@ function! vim#showPreview(params)
 endfunction
 
 function! vim#showFloatingWindow(params)
-  let l:lines = a:params['lines']
-  let width = 80
-  let height = len(l:lines) + 1
+  let l:lines = []
+  for line in a:params['lines']
+    let l:lines = add(l:lines, ' ' . line . ' ')
+  endfor
+
+  let width = 82
+  let height = len(l:lines) + 3
   let top = -height
   let left = 0
   let opts = {
@@ -189,7 +193,7 @@ function! vim#showFloatingWindow(params)
   let l:pos = getcurpos()
   let l:textbuf = nvim_create_buf(v:false, v:true)
   let win_handle = nvim_open_win(l:textbuf, v:true, opts)
-  call append(0, l:lines)
+  call append(1, l:lines)
   setlocal filetype=markdown
   setlocal buftype=nofile nobuflisted bufhidden=wipe nonumber norelativenumber signcolumn=no modifiable
   setlocal nomodified nomodifiable

@@ -252,31 +252,51 @@ where
         }
 
         let list = match response.unwrap() {
-            lsp_types::CompletionResponse::Array(vec) => vec
-                .into_iter()
-                .map(|i| CompletionItem {
-                    word: i.label,
-                    kind: completion_item_kind(i.kind),
-                    menu: Some(i.detail.unwrap_or_default()),
-                    ..Default::default()
-                })
-                .collect(),
-            lsp_types::CompletionResponse::List(list) => list
-                .items
-                .into_iter()
-                .map(|i| CompletionItem {
-                    word: i.label,
-                    kind: completion_item_kind(i.kind),
-                    menu: Some(i.detail.unwrap_or_default()),
-                    ..Default::default()
-                })
-                .collect(),
+            lsp_types::CompletionResponse::Array(vec) => {
+                vec.into_iter().map(|i| i.into()).collect()
+            }
+            lsp_types::CompletionResponse::List(list) => {
+                list.items.into_iter().map(|i| i.into()).collect()
+            }
         };
 
         let list = CompletionList { words: list };
         self.vim
             .reply_success(&message_id, serde_json::to_value(&list)?)?;
 
+        Ok(())
+    }
+
+    pub async fn resolve_completion(
+        &self,
+        message_id: &jsonrpc_core::Id,
+        params: CompletionItemWithContext,
+    ) -> Fallible<()> {
+        let state = self.state.read().await;
+        let caps = state.server_capabilities.get(&params.language_id);
+        if caps.is_none() {
+            log::debug!("skipping completionItem/resolve, no server capabilities found");
+            return Ok(());
+        }
+
+        let opts: Option<&lsp_types::CompletionOptions> =
+            caps.unwrap().completion_provider.as_ref();
+        if opts.is_none() {
+            log::debug!("skipping completionItem/resolve, server is not completion provider");
+            return Ok(());
+        }
+
+        if !opts.unwrap().resolve_provider.unwrap_or_default() {
+            log::debug!("skipping completionItem/resolve, server is not resolve provider");
+            return Ok(());
+        }
+
+        let ci: lsp_types::CompletionItem = self
+            .completion_item_resolve(&params.language_id, params.completion_item)
+            .await?;
+        let ci: CompletionItem = ci.into();
+        self.vim
+            .reply_success(&message_id, serde_json::to_value(&ci)?)?;
         Ok(())
     }
 

@@ -40,6 +40,11 @@ where
                     let params: BufInfo = serde_json::from_value(msg.params.into())?;
                     self.exit(&params.language_id).await?;
                 }
+                "completionItem/resolve" => {
+                    let params: CompletionItemWithContext =
+                        serde_json::from_value(msg.params.into())?;
+                    self.resolve_completion(&message_id, params).await?;
+                }
                 "textDocument/completion" => {
                     let params: CursorPosition = serde_json::from_value(msg.params.into())?;
                     self.completion(&message_id, params).await?;
@@ -89,7 +94,7 @@ where
                     let params: CursorPosition = serde_json::from_value(msg.params.into())?;
                     self.implementation(params).await?;
                 }
-                _ => log::debug!("unhandled method call {}", msg.method),
+                _ => log::debug!("unhandled vim method call {}", msg.method),
             },
             rpc::Message::Notification(msg) => match msg.method.as_str() {
                 "textDocument/didSave" => {

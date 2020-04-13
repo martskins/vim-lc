@@ -25,7 +25,7 @@
 - [x] textDocument/didClose
 - [x] textDocument/publishDiagnostics
 - [x] textDocument/completion
-- [ ] completionItem/resolve
+- [~] completionItem/resolve
 - [x] textDocument/hover
 - [ ] textDocument/signatureHelp
 - [x] textDocument/definition

@@ -132,7 +132,7 @@ where
             }
         };
 
-        match self.config.hover.display_mode {
+        match self.config.hover.strategy {
             config::DisplayMode::Preview => {
                 let client = self.vim.clone();
                 client.notify("showPreview", PreviewContent { filetype, lines })?;

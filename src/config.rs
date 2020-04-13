@@ -54,14 +54,24 @@ pub enum DisplayMode {
 
 impl Default for DisplayMode {
     fn default() -> Self {
-        DisplayMode::Preview
+        DisplayMode::FloatingWindow
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct Hover {
-    pub display_mode: DisplayMode,
+    pub strategy: DisplayMode,
+    pub preferred_markup_kind: Vec<lsp_types::MarkupKind>,
+}
+
+impl Default for Hover {
+    fn default() -> Self {
+        Hover {
+            strategy: DisplayMode::default(),
+            preferred_markup_kind: vec![lsp_types::MarkupKind::PlainText],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -155,7 +165,7 @@ impl Config {
 
         let file = tokio::fs::File::open(path).await;
         if let Err(err) = file {
-            eprintln!("Could not open config file: {}", err);
+            log::error!("Could not open config file: {}", err);
             return Ok(Config::default());
         }
 

@@ -49,6 +49,10 @@ function! vlc#shutdown() abort
   call lsp#shutdown()
 endfunction
 
+function! vlc#resolveCompletion() abort
+  " call lsp#completionItemResolve(funcref('s:doEcho'))
+endfunction
+
 function! vlc#start() abort
   call rpc#call('start', {'language_id': &filetype})
   let s:running[&filetype] = v:true
@@ -65,7 +69,6 @@ function! vlc#registerNCM2Source(params) abort
   for cp in l:complete_pattern
     let l:cpp = add(l:cpp, escape(cp, '.\/:'))
   endfor
-  echom json_encode(l:cpp)
   call ncm2#register_source({
       \ 'name' : 'vlc',
       \ 'scope': [a:params['language_id']],

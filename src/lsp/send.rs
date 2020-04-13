@@ -103,6 +103,7 @@ where
     }
 
     pub async fn initialize(&self, language_id: &str) -> Fallible<()> {
+        let config = self.config.clone();
         let client = self.get_client(language_id).await?;
         let process_id = self.get_process_id(language_id).await?;
         let message = InitializeParams {
@@ -110,7 +111,16 @@ where
             root_path: None,
             root_uri: Some(Url::from_directory_path(std::env::current_dir()?).unwrap()),
             initialization_options: None,
-            capabilities: ClientCapabilities::default(),
+            capabilities: ClientCapabilities {
+                text_document: Some(TextDocumentClientCapabilities {
+                    hover: Some(HoverCapability {
+                        content_format: Some(config.hover.preferred_markup_kind),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
             trace: Some(TraceOption::Verbose),
             workspace_folders: None,
             client_info: Some(ClientInfo {
@@ -317,6 +327,19 @@ where
 
         let client = self.get_client(language_id).await?;
         let message = client.call(request::Completion::METHOD, input)?;
+
+        Ok(message)
+    }
+
+    pub async fn completion_item_resolve(
+        &self,
+        language_id: &str,
+        input: vim::CompletionItem,
+    ) -> Fallible<CompletionItem> {
+        let params: CompletionItem = input.into();
+        let client = self.get_client(language_id).await?;
+        let message: CompletionItem =
+            client.call(request::ResolveCompletionItem::METHOD, params)?;
 
         Ok(message)
     }

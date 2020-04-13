@@ -29,4 +29,5 @@ augroup vlc
     autocmd VimLeavePre   *   call lsp#exit()
     autocmd TextChangedP  *   call lsp#didChange()
     autocmd TextChangedI  *   call lsp#didChange()
+    autocmd CompleteDone  *   call vlc#resolveCompletion()
 augroup END
