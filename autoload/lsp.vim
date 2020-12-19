@@ -5,32 +5,32 @@ function! lsp#initialize() abort
   let s:initialized = v:true
 endfunction
 
-function! lsp#didOpen() abort
+function! lsp#did_open() abort
   if s:initialized ==# v:false
     call lsp#initialize()
   endif
 
-  call s:sendFileLifecycleEvent('textDocument/didOpen')
+  call s:send_lifecycle_event('textDocument/didOpen')
 endfunction
 
-function! lsp#didSave() abort
-  call s:sendFileLifecycleEvent('textDocument/didSave')
+function! lsp#did_save() abort
+  call s:send_lifecycle_event('textDocument/didSave')
 endfunction
 
-function! lsp#didChange() abort
-  call s:sendFileLifecycleEvent('textDocument/didChange')
+function! lsp#did_change() abort
+  call s:send_lifecycle_event('textDocument/didChange')
 endfunction
 
-function! lsp#didClose() abort
-  call s:sendFileLifecycleEvent('textDocument/didClose')
+function! lsp#did_close() abort
+  call s:send_lifecycle_event('textDocument/didClose')
 endfunction
 
-function! s:sendFileLifecycleEvent(event) abort
+function! s:send_lifecycle_event(event) abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
-  call rpc#notify(a:event, s:TextDocument())
+  call rpc#notify(a:event, s:text_document())
   return 1
 endfunction
 
@@ -42,22 +42,31 @@ function! lsp#shutdown() abort
   call rpc#call('shutdown', v:null)
 endfunction
 
-function! lsp#codeLensAction() abort
+function! lsp#code_lens_action() abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
-  let l:params = s:Position()
-  return rpc#call('codeLensAction', l:params)
+  let l:params = s:position()
+  return rpc#call('vlc/codeLensAction', l:params)
 endfunction
 
-function! lsp#codeAction() abort
+function! lsp#code_action() abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
-  let l:params = extend(s:SelectionRange(), { 'text_document': expand('%:p') })
+  let l:params = extend(s:selection_range(), { 'text_document': expand('%:p') })
   return rpc#call('textDocument/codeAction', l:params)
+endfunction
+
+function! lsp#formatting() abort
+  if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
+    return 0
+  endif
+
+  let l:params = {}
+  return rpc#call('textDocument/formatting', l:params)
 endfunction
 
 function! lsp#rename(new_name) abort
@@ -65,17 +74,16 @@ function! lsp#rename(new_name) abort
     return 0
   endif
 
-  let l:params = extend(s:Position(), { 'language_id': &filetype, 'new_name': a:new_name })
+  let l:params = extend(s:position(), { 'language_id': &filetype, 'new_name': a:new_name })
   return rpc#call('textDocument/rename', l:params)
 endfunction
-
 
 function! lsp#hover() abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
-  return rpc#call('textDocument/hover', s:Position())
+  return rpc#call('textDocument/hover', s:position())
 endfunction
 
 function! lsp#implementation() abort
@@ -83,7 +91,7 @@ function! lsp#implementation() abort
     return 0
   endif
 
-  call rpc#call('textDocument/implementation', s:Position())
+  call rpc#call('textDocument/implementation', s:position())
 endfunction
 
 function! lsp#references() abort
@@ -91,15 +99,15 @@ function! lsp#references() abort
     return 0
   endif
 
-  call rpc#call('textDocument/references', s:Position())
+  call rpc#call('textDocument/references', s:position())
 endfunction
 
-function! lsp#goToDefinition() abort
+function! lsp#definition() abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
-  call rpc#call('textDocument/definition', s:Position())
+  call rpc#call('textDocument/definition', s:position())
 endfunction
 
 function! lsp#completion(callback) abort
@@ -107,11 +115,11 @@ function! lsp#completion(callback) abort
     return 0
   endif
 
-  return rpc#callWithCallback('textDocument/completion', s:Position(), a:callback)
+  return rpc#call_with_callback('textDocument/completion', s:position(), a:callback)
 endfunction
 
 " TODO: not sure what to do with the result of completionItem/resolve
-function! lsp#completionItemResolve(callback) abort
+function! lsp#completion_item_resolve(callback) abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
@@ -122,14 +130,14 @@ function! lsp#completionItemResolve(callback) abort
   endif
 
   let l:params = {
-        \ 'position': s:Position(),
+        \ 'position': s:position(),
         \ 'completion_item': v:completed_item,
         \ }
-  return rpc#callWithCallback('completionItem/resolve', l:params, a:callback)
+  return rpc#call_with_callback('completionItem/resolve', l:params, a:callback)
 endfunction
 
 "{{{ PRIVATE FUNCTIONS
-function! s:SelectionRange(...) abort
+function! s:selection_range(...) abort
   let l:mode = mode()
 
   if l:mode ==# 'v'
@@ -137,20 +145,20 @@ function! s:SelectionRange(...) abort
     let [line_end, column_end] = getpos("'>")[1:2]
 
     return { 'range': {
-          \ 'start': { 'line': line_start, 'column': column_start },
-          \ 'end': { 'line': line_end, 'column': column_end },
+          \ 'start': { 'line': line_start - 1, 'column': column_start },
+          \ 'end': { 'line': line_end - 1, 'column': column_end },
           \ }}
   endif
 
   let l:line = line('.')
   let l:col = col('.')
   return { 'range': {
-        \ 'start': { 'line': l:line, 'column': l:col },
-        \ 'end': { 'line': l:line, 'column': l:col },
+        \ 'start': { 'line': l:line - 1, 'column': l:col },
+        \ 'end': { 'line': l:line - 1, 'column': l:col },
         \ }}
 endfunction
 
-function! s:Position(...) abort
+function! s:position(...) abort
   let l:line = line('.')
   let l:col = col('.')
   let l:path = expand('%:p')
@@ -162,11 +170,11 @@ function! s:Position(...) abort
         \}
 endfunction
 
-function! s:TextDocument(...) abort
+function! s:text_document(...) abort
   let l:text = s:text()
   return extend({
         \ 'text': l:text,
-        \}, s:Position())
+        \}, s:position())
 endfunction
 
 function! s:text(...) abort

@@ -1,1 +1,1 @@
-mod ncm2;
+pub mod ncm2;

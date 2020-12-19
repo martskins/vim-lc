@@ -1,31 +1,29 @@
-use crate::language_client::LanguageClient;
+use crate::lsp::Context;
 use crate::rpc::RPCClient;
 use failure::Fallible;
 
-impl<T> LanguageClient<T>
-where
-    T: RPCClient + Send + Sync + Clone + 'static,
-{
-    pub async fn register_ncm2_source(&self, language_id: &str) -> Fallible<()> {
-        let state = self.state.read().await;
-        let caps = state.server_capabilities.get(language_id);
-        if caps.is_none() {
-            return Ok(());
-        }
+pub async fn register_ncm2_source<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>) -> Fallible<()> {
+    let state = ctx.state.read();
+    let caps = state.server_capabilities.get(&ctx.language_id).cloned();
+    drop(state);
 
-        let opts = caps.cloned().unwrap().completion_provider;
-        if opts.is_none() {
-            return Ok(());
-        }
-
-        let opts = opts.unwrap();
-        let complete_pattern: Vec<_> = opts.trigger_characters.unwrap_or_default();
-        let params = serde_json::json!({
-            "complete_pattern": complete_pattern,
-            "language_id": language_id,
-        });
-
-        self.vim.notify("registerNCM2Source", params)?;
-        Ok(())
+    if caps.is_none() {
+        return Ok(());
     }
+
+    let opts = caps.unwrap().completion_provider;
+    if opts.is_none() {
+        return Ok(());
+    }
+
+    let opts = opts.unwrap();
+    let complete_pattern: Vec<_> = opts.trigger_characters.unwrap_or_default();
+    let params = serde_json::json!({
+        "complete_pattern": complete_pattern,
+        "language_id": ctx.language_id,
+    });
+
+    ctx.vim
+        .notify("vlc#register_ncm2", serde_json::json!([params]))?;
+    Ok(())
 }

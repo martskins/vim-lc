@@ -3,7 +3,7 @@ let s:callbacks = {}
 let s:id = 0
 let s:job = -1
 
-function! s:getID() abort
+function! s:get_id() abort
   let l:id = s:id
   let s:id = s:id + 1
   return l:id
@@ -20,7 +20,7 @@ function! rpc#start(binpath, config) abort
   if has('nvim')
     let s:job = jobstart(cmd, {
         \ 'on_stdout': function('rpc#read'),
-        \ 'on_stderr': function('vim#handleError'),
+        \ 'on_stderr': function('vim#handle_error'),
       \ })
 
     if s:job == 0
@@ -40,25 +40,25 @@ endfunction
 
 " TODO: needs to be separated in replySuccess and replyError
 function! rpc#reply(id, params) abort
-  call s:doSend('success', a:params, a:id)
+  call s:do_send('success', a:params, a:id)
 endfunction
 
-function! rpc#callWithCallback(method, params, callback) abort
+function! rpc#call_with_callback(method, params, callback) abort
   let l:id = rpc#call(a:method, a:params)
   let s:callbacks[l:id] = a:callback
 endfunction
 
 function! rpc#call(method, params) abort
-  let l:id = s:getID()
-  call s:doSend(a:method, a:params, l:id)
+  let l:id = s:get_id()
+  call s:do_send(a:method, a:params, l:id)
   return l:id
 endfunction
 
 function! rpc#notify(method, params) abort
-  call s:doSend(a:method, a:params)
+  call s:do_send(a:method, a:params)
 endfunction
 
-function! s:doSend(method, params, ...) abort
+function! s:do_send(method, params, ...) abort
   " do not send if binary hasn't been executed
   if s:job <= 0
     return 0
@@ -68,6 +68,7 @@ function! s:doSend(method, params, ...) abort
   if type(params) == type({})
       let l:params = extend({
             \ 'bufnr': bufnr(''),
+            \ 'filename': expand('%:p'),
             \ 'language_id': &filetype,
             \ }, l:params)
   endif
@@ -136,8 +137,12 @@ function! rpc#read(job, lines, event) abort
       continue
     endif
 
-    if has_key(l:message, 'result') || has_key(l:message, 'error')
+    let l:message_id = v:null
+    if has_key(l:message, 'id')
       let l:message_id = l:message['id']
+    endif
+
+    if has_key(l:message, 'result') || has_key(l:message, 'error')
       let Callback = s:callbacks[l:message_id]
       call Callback(l:message['result'])
       continue
@@ -145,56 +150,26 @@ function! rpc#read(job, lines, event) abort
 
     let l:method = l:message['method']
     let l:params = l:message['params']
-
-    " TODO: replace this huge elseif block with just calling the vim function with the same name as
-    " the jsonrpc method.
-    " for example:
-    "   { jsonrpc: 2.0, method: vim#showMmessage, params: [] }
-
-    " shows a message in the bottom bar
-    if l:method ==# 'showMessage'
-      return vim#showMessage(l:params)
-    " applies a list of edits
-    elseif l:method ==# 'applyEdits'
-      " l:params is a slice with the following format:
-      "   {edits: [{lines: [{lnum: 2, text: "new text" }]}], text_document: "filename.go" }
-      for l:changes in l:params
-        call vim#applyChanges(l:changes)
-      endfor
-    " registers the completion engine with NCM2
-    elseif l:method ==# 'registerNCM2Source'
-      return vlc#registerNCM2Source(l:params)
-    " opens and populates a floating window
-    elseif l:method ==# 'showFloatingWindow'
-      return vim#showFloatingWindow(l:params)
-    " shows a list of items in fzf
-    elseif l:method ==# 'showFZF'
-      return vim#showFZF(l:params['items'], l:params['sink'])
-    " shows the preview window and sets it's content
-    elseif l:method ==# 'showPreview'
-      return vim#showPreview(l:params)
+    if l:method ==# 'vim#show_fzf'
+      return vim#show_fzf(l:params['items'], l:params['sink'])
     " shows the vitual texts for the current buffer
-    elseif l:method ==# 'setVirtualTexts'
-      return vim#setVirtualTexts(l:params)
-    " shows the quickfix window and sets it's content
-    elseif l:method ==# 'setQuickfix'
-      return vim#setQuickfix(l:params)
-    " sets the signs in the gutter
-    elseif l:method ==# 'setSigns'
-      return vim#setSigns(l:params)
-    " evaluates a command and returns immediately
     elseif l:method ==# 'call'
       call vim#eval(l:params)
     " evaluates a command, waits for the response and replies to the server
     elseif l:method ==# 'eval'
       let l:res = vim#eval(l:params)
       if has_key(l:message, 'id')
-        call rpc#reply(l:message['id'], l:res)
+        call rpc#reply(l:message_id, l:res)
       endif
     elseif l:method ==# 'execute'
       let l:res = vim#execute(l:params)
       if has_key(l:message, 'id')
-        call rpc#reply(l:message['id'], l:res)
+        call rpc#reply(l:message_id, l:res)
+      endif
+    else
+      let l:result = call(l:method, l:params)
+      if l:message_id isnot v:null
+        call rpc#reply(l:message_id, l:result)
       endif
     endif
   endwhile

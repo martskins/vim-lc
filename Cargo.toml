@@ -8,15 +8,16 @@ edition = "2018"
 
 [dependencies]
 lsp-types = "0.73.0"               # Types for interaction with a language server, using VSCode's Language Server Protocol
-crossbeam = "0.7.3"                       # Tools for concurrent programming
-tokio = { version = "0.2.16", features = [ "blocking", "io-std", "io-util", "rt-threaded", "macros", "process", "fs", "sync", "blocking" ] }
-futures = "0.3.4"                 # An implementation of futures and streams featuring zero allocations, composability, and itera…
-failure = "0.1.7"                    # Experimental error handling abstraction.
-log = "0.4.8"                 # A lightweight logging facade for Rust
+crossbeam = "0.8"                       # Tools for concurrent programming
+tokio = { version = "0.3.6", features = [ "rt-multi-thread", "io-std", "io-util", "macros", "process", "fs", "sync" ] }
+futures = "0.3"                 # An implementation of futures and streams featuring zero allocations, composability, and itera…
+failure = "0.1"                    # Experimental error handling abstraction.
+log = "0.4"                 # A lightweight logging facade for Rust
 serde = "1.0.106"                              # A generic serialization/deserialization framework
 serde_json = "1.0.51"          # A JSON serialization file format
 jsonrpc-core = "14.0.5"            # Transport agnostic rust implementation of JSON-RPC 2.0 Specification.
-toml = "0.5.6"              # A native Rust encoder and decoder of TOML-formatted files and streams. Provides implementations of …
-fern = "0.6.0"                         # Simple, efficient logging
-shellexpand = "2.0.0"    # Shell-like expansions in strings
+toml = "0.5"              # A native Rust encoder and decoder of TOML-formatted files and streams. Provides implementations of …
+fern = "0.6"                         # Simple, efficient logging
+shellexpand = "2"    # Shell-like expansions in strings
 structopt = "0.3.13"               # Parse command line argument by defining a struct.
+parking_lot = { version = "0.11.1", features = [ "deadlock_detection" ] }

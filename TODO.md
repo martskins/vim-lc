@@ -16,7 +16,7 @@
 - [ ] workspace/didChangeWatchedFiles
 - [ ] workspace/symbol
 - [x] workspace/executeCommand
-- [ ] workspace/applyEdit
+- [x] workspace/applyEdit
 - [x] textDocument/didOpen
 - [x] textDocument/didChange
 - [ ] textDocument/willSave

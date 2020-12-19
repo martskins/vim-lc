@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-// FZFItem is a trait that enables a type to be displayed in FZF.
-pub trait FZFItem {
+pub trait ListItem {
     // user selection callback. This should take the name of a scope local function defined in
     // vim.
     fn sink() -> String;
@@ -9,9 +8,9 @@ pub trait FZFItem {
     fn text(&self) -> String;
 }
 
-impl FZFItem for lsp_types::CodeLens {
+impl ListItem for lsp_types::CodeLens {
     fn sink() -> String {
-        "s:resolveCodeLensAction".into()
+        "s:resolve_code_lens_action".into()
     }
 
     fn text(&self) -> String {
@@ -23,15 +22,44 @@ impl FZFItem for lsp_types::CodeLens {
     }
 }
 
+impl ListItem for Action {
+    fn sink() -> String {
+        "s:resolve_code_action".into()
+    }
+
+    fn text(&self) -> String {
+        self.text.clone()
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct LocationWithPreview {
     pub location: Location,
     pub preview: String,
 }
 
-impl FZFItem for LocationWithPreview {
+#[derive(Debug, Serialize)]
+pub struct LocationItem {
+    pub filename: String,
+    pub lnum: u64,
+    pub col: u64,
+    pub text: String,
+}
+
+impl Into<LocationItem> for LocationWithPreview {
+    fn into(self) -> LocationItem {
+        LocationItem {
+            filename: self.location.filename,
+            lnum: self.location.position.line,
+            col: self.location.position.column,
+            text: self.preview,
+        }
+    }
+}
+
+impl ListItem for LocationWithPreview {
     fn sink() -> String {
-        "s:fzfLocationSink".into()
+        "s:location_sink".into()
     }
 
     fn text(&self) -> String {
@@ -39,16 +67,6 @@ impl FZFItem for LocationWithPreview {
             "{}:{} \t{}",
             self.location.filename, self.location.position.line, self.preview
         )
-    }
-}
-
-impl FZFItem for Action {
-    fn sink() -> String {
-        "s:resolveCodeAction".into()
-    }
-
-    fn text(&self) -> String {
-        self.text.clone()
     }
 }
 
@@ -64,7 +82,7 @@ pub struct DocumentChanges {
 }
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ResolveCodeActionParams {
-    pub selection: String,
+    pub selection: usize,
     #[serde(flatten)]
     pub position: CursorPosition,
 }
@@ -250,8 +268,8 @@ impl Into<QuickfixItem> for Diagnostic {
         QuickfixItem {
             bufnr: 0,
             filename: self.text_document,
-            line: self.line,
-            column: self.col,
+            lnum: self.line,
+            col: self.col,
             text: self.text,
             kind,
         }
@@ -295,10 +313,8 @@ pub struct ExecuteParams {
 pub struct QuickfixItem {
     pub bufnr: u64,
     pub filename: String,
-    #[serde(rename = "lnum")]
-    pub line: u64,
-    #[serde(rename = "col")]
-    pub column: u64,
+    pub lnum: u64,
+    pub col: u64,
     pub text: String,
     pub kind: char,
 }
@@ -351,6 +367,7 @@ pub struct Message {
 #[derive(Debug, Deserialize)]
 pub struct BufInfo {
     pub bufnr: u64,
+    pub filename: String,
     pub language_id: String,
 }
 
@@ -405,6 +422,15 @@ pub struct Range {
     pub end: Position,
 }
 
+impl From<lsp_types::Position> for Position {
+    fn from(f: lsp_types::Position) -> Self {
+        Position {
+            line: f.line + 1,
+            column: f.character + 1,
+        }
+    }
+}
+
 impl Into<lsp_types::Range> for Range {
     fn into(self) -> lsp_types::Range {
         lsp_types::Range {
@@ -425,8 +451,8 @@ pub struct Position {
 impl Into<lsp_types::Position> for Position {
     fn into(self) -> lsp_types::Position {
         lsp_types::Position {
-            line: self.line,
-            character: self.column,
+            line: self.line - 1,
+            character: self.column - 1,
         }
     }
 }

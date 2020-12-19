@@ -1,28 +1,25 @@
-mod rust_analyzer;
+pub mod rust_analyzer;
 
+use super::Context;
 use crate::rpc::RPCClient;
-use crate::LanguageClient;
 use failure::Fallible;
 use lsp_types::*;
 
-impl<T> LanguageClient<T>
+pub async fn run_command<C, S>(ctx: &Context<C, S>, cmd: &Command) -> Fallible<()>
 where
-    T: RPCClient + Send + Sync + Clone + 'static,
+    C: RPCClient,
+    S: RPCClient,
 {
-    pub async fn run_command(&self, language_id: &str, cmd: Command) -> Fallible<()> {
-        match cmd.command.as_str() {
-            "rust-analyzer.applySourceChange" => {
-                self.rust_analyzer_apply_source_change(cmd.arguments)?
-            }
-            "rust-analyzer.showReferences" => {
-                self.rust_analyzer_show_references(cmd.arguments).await?
-            }
-            "rust-analyzer.run" | "rust-analyzer.runSingle" => {
-                self.rust_analyzer_run(cmd.arguments)?
-            }
-            _ => self.workspace_execute_command(language_id, cmd).await?,
+    match cmd.command.as_str() {
+        "rust-analyzer.applySourceChange" => {
+            rust_analyzer::apply_source_change(ctx, &cmd.arguments)?
         }
-
-        Ok(())
+        "rust-analyzer.showReferences" => {
+            rust_analyzer::show_references(ctx, &cmd.arguments).await?
+        }
+        "rust-analyzer.run" | "rust-analyzer.runSingle" => rust_analyzer::run(ctx, &cmd.arguments)?,
+        _ => crate::lsp::workspace::execute_command(ctx, cmd)?,
     }
+
+    Ok(())
 }

@@ -1,6 +1,6 @@
 let s:running = {}
 
-function! vlc#didOpen() abort
+function! vlc#did_open() abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
@@ -9,7 +9,11 @@ function! vlc#didOpen() abort
     call vlc#start()
   endif
 
-  call lsp#didOpen()
+  call lsp#did_open()
+endfunction
+
+function! vlc#formatting() abort
+  call lsp#formatting()
 endfunction
 
 function! vlc#rename() abort
@@ -17,12 +21,12 @@ function! vlc#rename() abort
   call lsp#rename(l:new_name)
 endfunction
 
-function! vlc#codeLensAction() abort
-  call lsp#codeLensAction()
+function! vlc#code_lens_action() abort
+  call lsp#code_lens_action()
 endfunction
 
-function! vlc#codeAction() abort
-  call lsp#codeAction()
+function! vlc#code_action() abort
+  call lsp#code_action()
 endfunction
 
 function! vlc#implementation() abort
@@ -37,8 +41,8 @@ function! vlc#hover() abort
   call lsp#hover()
 endfunction
 
-function! vlc#goToDefinition() abort
-  call lsp#goToDefinition()
+function! vlc#definition() abort
+  call lsp#definition()
 endfunction
 
 function! vlc#exit() abort
@@ -49,7 +53,7 @@ function! vlc#shutdown() abort
   call lsp#shutdown()
 endfunction
 
-function! vlc#resolveCompletion() abort
+function! vlc#resolve_completion() abort
   " call lsp#completionItemResolve(funcref('s:doEcho'))
 endfunction
 
@@ -63,7 +67,7 @@ function! vlc#stop() abort
   let s:running[&filetype] = v:false
 endfunction
 
-function! vlc#registerNCM2Source(params) abort
+function! vlc#register_ncm2(params) abort
   let l:complete_pattern = a:params['complete_pattern']
   let l:cpp = []
   for cp in l:complete_pattern
@@ -77,13 +81,13 @@ function! vlc#registerNCM2Source(params) abort
       \ 'subscope_enable': 1,
       \ 'complete_length': -1,
       \ 'complete_pattern': l:cpp,
-      \ 'on_complete': ['vlc#ncm2Completion'],
+      \ 'on_complete': ['vlc#ncm2_completion'],
       \ })
 endfunction
 
 " ncm2 completion func
-function! vlc#ncm2Completion(ctx) abort
-  call lsp#completion(funcref('vlc#ncmDoComplete', [a:ctx]))
+function! vlc#ncm2_completion(ctx) abort
+  call lsp#completion(funcref('vlc#ncm_do_complete', [a:ctx]))
 endfunction
 
 " omnifunc completion func
@@ -92,15 +96,15 @@ function! vlc#completion(findstart, base) abort
     return col('.')
   endif
 
-  call lsp#completion(funcref('vlc#doComplete'))
+  call lsp#completion(funcref('vlc#do_complete'))
 endfunction
 
 " ncm2 completion callback to populate completion list
-function! vlc#doComplete(res) abort
+function! vlc#do_complete(res) abort
   call complete(col('.'), a:res['words'])
 endfunction
 
 " ncm2 completion callback to populate completion list
-function! vlc#ncmDoComplete(ctx, res) abort
+function! vlc#ncm_do_complete(ctx, res) abort
   call ncm2#complete(a:ctx, col('.'), a:res['words'], 0)
 endfunction

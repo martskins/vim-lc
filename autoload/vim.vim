@@ -5,7 +5,8 @@ function! vim#start() abort
     return 0
   endif
 
-  let l:binpath = expand('~/.vim/plugged/vim-lc/target/release/vlc')
+  let l:binpath = expand('~/dev/vim-lc/target/release/vlc')
+  " let l:binpath = expand('~/.vim/plugged/vim-lc/target/release/vlc')
   if exists('g:vlc#binpath')
     let l:binpath = expand(g:vlc#binpath)
   endif
@@ -24,7 +25,7 @@ function! vim#start() abort
   let s:running = v:true
 endfunction
 
-function! vim#handleError(job, lines, event) abort
+function! vim#handle_error(job, lines, event) abort
     echoerr json_decode(a:lines)
 endfunction
 
@@ -50,58 +51,92 @@ function! vim#eval(params) abort
   return l:res
 endfunction
 
-function! vim#applyChanges(changes) abort
+function! vim#apply_edits(edits) abort
+  for l:edit in a:edits
+    call vim#apply_edit(l:edit)
+  endfor
+endfunction
+
+function! vim#apply_edit(changes) abort
   try
     execute 'edit' a:changes['text_document']
   catch
   endtry
 
   for change in a:changes['changes']
-    let l:start_line = change['start']['line'] + 1
-    let l:start_col = change['start']['column'] + 1
+    let l:start_line = change['start']['line']
+    let l:start_col = change['start']['column']
 
-    let l:end_line = change['end']['line'] + 1
-    let l:end_col = change['end']['column'] + 1
+    let l:end_line = change['end']['line']
+    let l:end_col = change['end']['column'] - 2
 
-    call cursor(l:start_line, l:start_col)
-
-    if l:start_line < l:end_line
-      " if the change happens in multiple lines
-      " delete the first line from start_col to end
-      normal! D
-      " delete all lines in between first and last
-      " not sure why 2, but it works
-      execute l:start_line + 2 . ',' . l:end_line - 1 . 'd'
-      " delete all characters from the start of the last line to end_col
-      let cnum = 0
-      while cnum < l:end_col
-        norma! x
-        let cnum += 1
-      endwhile
-    elseif l:start_line == l:end_line
-      " if the change happens in a single line
-      " delete all characters between start_col and end_col
-      let cnum = l:start_col
-      while cnum < l:end_col
-        norma! x
-        let cnum += 1
-      endwhile
+    let l:first_line = getline(l:start_line)
+    if len(l:first_line) ==# l:start_col - 1
+      let l:start_line += 1
+      let l:start_col = 0
     endif
 
-    if l:start_line < l:end_line
-      " if the change happens in multiple lines
-      " append all lines after the cursor
-      call append(line('.'), change['lines'])
-    else
-      " if change happens in a single line
-      " insert the change after the cursor
-      execute 'normal! ha' . change['lines'][0]
-    endif
+    " if change['end'] !=# change['start']
+      let l:command = 'normal! ' . l:start_line . 'G0' . l:start_col
+      if l:start_col > 0
+        let l:command .= 'l'
+      endif
+      let l:command .= 'v'.  l:end_line . 'G0' . l:end_col
+      if l:end_col > 0
+        let l:command .= 'l'
+      endif
+      let l:command .= 'c'
+
+      echom l:command
+      call execute(l:command)
+      execute 'normal! lha' . join(change['lines'], '\n')
+    " else
+    "   call cursor(l:start_line, l:start_col)
+    "   execute 'normal! lha' . join(change['lines'], '\n')
+    " endif
+    " call append(line('.'), change['lines'])
+    " normal! c
+
+      " echom l:start_line
+      " echom l:end_line
+      " echom json_encode(change['lines'])
+    " if l:start_line < l:end_line
+      " " if the change happens in multiple lines
+      " " delete the first line from start_col to end
+      " " normal! D
+      " " delete all lines in between first and last
+      " " not sure why 2, but it works
+      " " execute l:start_line + 1 . ',' . l:end_line . 'd'
+      " " delete all characters from the start of the last line to end_col
+      " let cnum = l:start_col
+      " while cnum < l:end_col
+      "   norma! x
+      "   let cnum += 1
+      " endwhile
+    " elseif l:start_line == l:end_line
+      " " if the change happens in a single line
+      " " delete all characters between start_col and end_col
+      " let cnum = l:start_col
+      " while cnum < l:end_col
+      "   norma! x
+      "   let cnum += 1
+      " endwhile
+    " endif
+
+    " if l:start_line < l:end_line
+    "   " if the change happens in multiple lines
+    "   " append all lines after the cursor
+    "   call append(line('.'), change['lines'])
+    " else
+    "   " if change happens in a single line
+    "   " insert the change after the cursor
+    "   execute 'normal! ha' . change['lines'][0]
+    " endif
   endfor
   execute ':w'
 endfunction
 
-function! vim#setVirtualTexts(params) abort
+function! vim#set_virtual_texts(params) abort
   if type(a:params) !=# type([])
     echoerr 'virtual texts list is not a list'
   endif
@@ -118,7 +153,7 @@ function! vim#setVirtualTexts(params) abort
   endfor
 endfunction
 
-function! vim#setQuickfix(params) abort
+function! vim#set_quickfix(params) abort
   if type(a:params) !=# type([])
     echoerr 'quickfix list is not a list'
   endif
@@ -131,7 +166,7 @@ function! vim#setQuickfix(params) abort
   call setqflist(l:params)
 endfunction
 
-function! vim#showMessage(params) abort
+function! vim#show_message(params) abort
   let l:level = 'INFO'
   if a:params['level'] == 1
     let l:level = 'ERROR'
@@ -146,7 +181,7 @@ function! vim#showMessage(params) abort
   echo l:level . ': ' . a:params['message']
 endfunction
 
-function! vim#setSigns(params) abort
+function! vim#set_signs(params) abort
   for l:sign in a:params
     if bufexists(l:sign['file'])
       call sign_place(l:sign['id'], '', 'vlc_warn', l:sign['file'], { 'lnum': l:sign['line'] })
@@ -154,7 +189,7 @@ function! vim#setSigns(params) abort
   endfor
 endfunction
 
-function! vim#showPreview(params)
+function! vim#show_preview(params)
   let l:filetype = a:params['filetype']
   let l:lines = a:params['lines']
 
@@ -172,7 +207,7 @@ function! vim#showPreview(params)
   endif
 endfunction
 
-function! vim#showFloatingWindow(params)
+function! vim#show_float_win(params)
   let l:lines = []
   for line in a:params['lines']
     let l:lines = add(l:lines, ' ' . line . ' ')
@@ -202,11 +237,11 @@ function! vim#showFloatingWindow(params)
   wincmd p
 
   augroup vlc-hover
-    execute 'autocmd CursorMoved,CursorMovedI,InsertEnter <buffer> call s:closeFloatingWin('. win_handle . ', ' . string(l:pos) . ')'
+    execute 'autocmd CursorMoved,CursorMovedI,InsertEnter <buffer> call s:close_floating_win('. win_handle . ', ' . string(l:pos) . ')'
   augroup END
 endfunction
 
-function! s:closeFloatingWin(win_handle, pos) abort
+function! s:close_floating_win(win_handle, pos) abort
   " we do not wish to close the window is moving from inside it back to the original buffer
   if a:pos ==# getcurpos()
     return
@@ -216,13 +251,31 @@ function! s:closeFloatingWin(win_handle, pos) abort
   autocmd! vlc-hover
 endfunction
 
-function! vim#showFZF(items, sink)
+function! vim#show_fzf(items, sink)
   call fzf#run(fzf#wrap({ 'source': a:items, 'sink': function(a:sink)}))
+endfunction
+
+function! vim#show_locations(items, sink) abort
+  call setloclist(0, a:items)
+  :lopen
+endfunction
+
+function! vim#selection(items, sink) abort
+  let l:options = map(copy(a:items), { key, val -> printf('%d) %s', key + 1, val ) })
+  call inputsave()
+  let l:selection = inputlist(l:options)
+  call inputrestore()
+
+  if !l:selection || l:selection > len(l:options)
+      return
+  endif
+
+  call call(a:sink, [l:selection])
 endfunction
 
 " selection is a string with the following pattern:
 "   {filename}:{line_number} \t{preview}
-function! s:fzfLocationSink(selection) abort
+function! s:location_sink(selection) abort
   let l:parts = split(a:selection, ':')
   let l:filename = l:parts[0]
   let l:line = split(l:parts[1], '\t')[0]
@@ -231,12 +284,12 @@ function! s:fzfLocationSink(selection) abort
   call cursor(l:line, 0)
 endfunction
 
-function! s:resolveAction(method, selection) abort
+function! s:resolve_action(method, selection) abort
   let l:line = line('.')
   let l:col = col('.')
   let l:path = expand('%:p')
   let l:params = {
-        \'selection': a:selection,
+        \'selection': a:selection - 1,
         \'text_document': l:path,
         \'line': l:line,
         \'column': l:col
@@ -244,12 +297,11 @@ function! s:resolveAction(method, selection) abort
   call rpc#call(a:method, l:params)
 endfunction
 
-function! s:resolveCodeLensAction(selection) abort
-  call s:resolveAction('resolveCodeLensAction', a:selection)
+function! s:resolve_code_lens_action(selection) abort
+  call s:resolve_action('vlc/resolveCodeLensAction', a:selection)
 endfunction
 
 
-function! s:resolveCodeAction(selection) abort
-  call s:resolveAction('resolveCodeAction', a:selection)
+function! s:resolve_code_action(selection) abort
+  call s:resolve_action('vlc/resolveCodeAction', a:selection)
 endfunction
-

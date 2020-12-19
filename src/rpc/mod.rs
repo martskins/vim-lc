@@ -1,6 +1,6 @@
 mod protocol;
 
-use crossbeam::{Receiver, Sender};
+use crossbeam::channel::{Receiver, Sender};
 use failure::Fallible;
 pub use protocol::*;
 use serde::{de::DeserializeOwned, Serialize};
@@ -114,14 +114,14 @@ impl RPCClient for Client {
         I: AsyncBufReadExt + Unpin + Send + 'static,
         O: AsyncWrite + Unpin + Send + 'static,
     {
-        let (pending_tx, pending_rx) = crossbeam::bounded(1);
-        let (reader_tx, reader_rx) = crossbeam::unbounded();
+        let (pending_tx, pending_rx) = crossbeam::channel::bounded(1);
+        let (reader_tx, reader_rx) = crossbeam::channel::unbounded();
         {
             let server_id = server_id.clone();
             tokio::spawn(async move {
-                loop_read(server_id, reader, pending_rx, reader_tx)
-                    .await
-                    .unwrap();
+                if let Err(e) = loop_read(server_id, reader, pending_rx, reader_tx).await {
+                    log::error!("{}", e);
+                }
             });
             // std::thread::spawn(move || {
             //     let mut rt = tokio::runtime::Runtime::new().unwrap();
@@ -130,11 +130,13 @@ impl RPCClient for Client {
             // });
         }
 
-        let (writer_tx, writer_rx) = crossbeam::bounded(1);
+        let (writer_tx, writer_rx) = crossbeam::channel::bounded(1);
         {
             let server_id = server_id.clone();
             tokio::spawn(async move {
-                loop_write(server_id, writer, writer_rx).await.unwrap();
+                if let Err(e) = loop_write(server_id, writer, writer_rx).await {
+                    log::error!("{}", e);
+                }
             });
             // std::thread::spawn(move || {
             //     let mut rt = tokio::runtime::Runtime::new().unwrap();
@@ -190,7 +192,7 @@ impl RPCClient for Client {
         M: Serialize,
         R: DeserializeOwned,
     {
-        let (tx, rx) = crossbeam::bounded(1);
+        let (tx, rx) = crossbeam::channel::bounded(1);
         let id = self.id.fetch_add(1, Ordering::SeqCst);
 
         let message = jsonrpc_core::MethodCall {
@@ -206,7 +208,9 @@ impl RPCClient for Client {
         let message = rx.recv()?;
         match message {
             jsonrpc_core::Output::Success(s) => Ok(serde_json::from_value(s.result)?),
-            jsonrpc_core::Output::Failure(s) => failure::bail!(s.error),
+            jsonrpc_core::Output::Failure(s) => {
+                failure::bail!(s.error)
+            }
         }
     }
 }

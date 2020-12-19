@@ -35,6 +35,29 @@ async fn main() -> Fallible<()> {
         .apply()
         .unwrap();
 
-    let lc: LanguageClient<rpc::Client> = language_client::LanguageClient::new(config);
+    let lc: LanguageClient<rpc::Client, rpc::Client> = language_client::LanguageClient::new(config);
+
+    // Create a background thread which checks for deadlocks every 10s
+
+    use parking_lot::deadlock;
+    use std::thread;
+    use std::time::Duration;
+    thread::spawn(move || loop {
+        thread::sleep(Duration::from_secs(1));
+        let deadlocks = deadlock::check_deadlock();
+        if deadlocks.is_empty() {
+            continue;
+        }
+
+        log::error!("{} deadlocks detected", deadlocks.len());
+        for (i, threads) in deadlocks.iter().enumerate() {
+            log::error!("Deadlock #{}", i);
+            for t in threads {
+                log::error!("Thread Id {:#?}", t.thread_id());
+                log::error!("{:#?}", t.backtrace());
+            }
+        }
+    });
+
     lc.run().await
 }
