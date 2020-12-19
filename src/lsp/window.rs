@@ -1,4 +1,4 @@
-use super::Context;
+use crate::language_client::Context;
 use crate::{rpc::RPCClient, vim};
 use anyhow::Result;
 use lsp_types::ShowMessageParams;

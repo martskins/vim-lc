@@ -101,9 +101,17 @@ let g:SuperTabDefaultCompletionType = '<c-n>'
 " }}}
 
 let g:vlc#servers = {
-      \ 'go': { 'name': 'gopls', 'command': 'gopls' },
+      \ 'go': {
+      \   'name': 'gopls',
+      \   'command': 'gopls',
+      \   'initializationOptions': {
+      \     'codelens': { 'test': v:true, 'gc_details': v:true },
+      \   },
+      \  },
       \ 'rust': { 'name': 'rust-analyzer', 'command': 'rust-analyzer' },
       \ }
+
+let g:vlc#log#level = 'error'
 
 nmap <silent>gd :VLCDefinition<CR>
 nmap <silent>gi :VLCImplementation<CR>

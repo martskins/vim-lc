@@ -1,11 +1,11 @@
-use std::path::PathBuf;
-
+use crate::language_client::Context;
+use crate::rpc::RPCClient;
 use crate::vim;
-use crate::{lsp::Context, rpc::RPCClient};
 use anyhow::Result;
 use lsp_types::*;
 use serde::*;
 use serde_json::Value;
+use std::path::PathBuf;
 
 #[derive(Debug, Deserialize)]
 struct RustAnalyzerSourceChanges {
@@ -14,6 +14,7 @@ struct RustAnalyzerSourceChanges {
     #[serde(rename = "workspaceEdit")]
     workspace_edit: WorkspaceEdit,
 }
+
 // Runnable wraps the two possible shapes of a runnable action from rust-analyzer. Old-ish versions
 // of it will use BinRunnable, whereas the newer ones use CargoRunnable.
 #[derive(Debug, Deserialize, PartialEq)]

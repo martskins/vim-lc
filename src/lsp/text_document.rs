@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-
-use super::Context;
+use crate::language_client::Context;
 use crate::{rpc::RPCClient, vim};
 use anyhow::Result;
 use lsp_types::{
@@ -14,6 +12,7 @@ use lsp_types::{
     TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, TextEdit, Url,
     VersionedTextDocumentIdentifier, WorkDoneProgressParams, WorkspaceEdit,
 };
+use std::collections::HashMap;
 
 pub async fn formatting<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
