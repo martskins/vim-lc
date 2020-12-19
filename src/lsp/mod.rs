@@ -7,7 +7,7 @@ pub mod workspace;
 use crate::rpc::{Message, RPCClient};
 use crate::{config::Config, rpc};
 use crate::{language_client::LanguageClient, state::State};
-use failure::Fallible;
+use anyhow::Result;
 use jsonrpc_core::Value;
 use lsp_types::{
     notification::{self, Notification},
@@ -85,7 +85,7 @@ where
     S: RPCClient,
 {
     // handles messages sent from vim to the language client
-    pub async fn handle_message(&self, message: rpc::Message) -> Fallible<()> {
+    pub async fn handle_message(&self, message: rpc::Message) -> Result<()> {
         let ctx = Context::new(&message, self).await;
         match message {
             rpc::Message::MethodCall(msg) => match msg.method.as_str() {
@@ -127,7 +127,7 @@ where
 }
 
 #[allow(deprecated)]
-pub async fn initialize<C, S>(ctx: &Context<C, S>) -> Fallible<()>
+pub async fn initialize<C, S>(ctx: &Context<C, S>) -> Result<()>
 where
     C: RPCClient,
     S: RPCClient,
@@ -169,7 +169,7 @@ where
     Ok(())
 }
 
-pub async fn shutdown<C, S>(ctx: &Context<C, S>) -> Fallible<()>
+pub async fn shutdown<C, S>(ctx: &Context<C, S>) -> Result<()>
 where
     C: RPCClient,
     S: RPCClient,
@@ -181,7 +181,7 @@ where
     Ok(())
 }
 
-pub async fn exit<C, S>(ctx: &Context<C, S>) -> Fallible<()>
+pub async fn exit<C, S>(ctx: &Context<C, S>) -> Result<()>
 where
     C: RPCClient,
     S: RPCClient,
@@ -193,7 +193,7 @@ where
     Ok(())
 }
 
-pub async fn initialized<C, S>(ctx: &Context<C, S>) -> Fallible<()>
+pub async fn initialized<C, S>(ctx: &Context<C, S>) -> Result<()>
 where
     C: RPCClient,
     S: RPCClient,

@@ -1,8 +1,8 @@
 use crate::lsp::Context;
 use crate::rpc::RPCClient;
-use failure::Fallible;
+use anyhow::Result;
 
-pub async fn register_ncm2_source<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>) -> Fallible<()> {
+pub async fn register_ncm2_source<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>) -> Result<()> {
     let state = ctx.state.read();
     let caps = state.server_capabilities.get(&ctx.language_id).cloned();
     drop(state);

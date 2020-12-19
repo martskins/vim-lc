@@ -1,6 +1,6 @@
 use super::Context;
 use crate::rpc::RPCClient;
-use failure::Fallible;
+use anyhow::Result;
 use lsp_types::{
     request::{self, Request},
     CodeLens,
@@ -9,7 +9,7 @@ use lsp_types::{
 pub fn resolve<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: &CodeLens,
-) -> Fallible<CodeLens> {
+) -> Result<CodeLens> {
     if input.data.is_none() {
         return Ok(input.clone());
     }

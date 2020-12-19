@@ -1,12 +1,12 @@
 use super::Context;
 use crate::{rpc::RPCClient, vim};
-use failure::Fallible;
+use anyhow::Result;
 use lsp_types::ShowMessageParams;
 
 pub fn progress<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     params: lsp_types::ProgressParams,
-) -> Fallible<()>
+) -> Result<()>
 where
     C: RPCClient,
     S: RPCClient,
@@ -37,7 +37,7 @@ where
 pub fn show_message<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: ShowMessageParams,
-) -> Fallible<()> {
+) -> Result<()> {
     let message = input.message;
     vim::show_message(
         ctx,

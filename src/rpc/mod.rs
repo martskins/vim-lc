@@ -1,7 +1,7 @@
 mod protocol;
 
+use anyhow::Result;
 use crossbeam::channel::{Receiver, Sender};
-use failure::Fallible;
 pub use protocol::*;
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
@@ -35,7 +35,7 @@ async fn loop_write<O>(
     server_id: ServerID,
     mut writer: O,
     receiver: Receiver<Message>,
-) -> Fallible<()>
+) -> Result<()>
 where
     O: AsyncWrite + Unpin + Send + 'static,
 {
@@ -65,7 +65,7 @@ async fn loop_read<I>(
     mut reader: I,
     pending_receiver: Receiver<(jsonrpc_core::Id, Sender<jsonrpc_core::Output>)>,
     sender: Sender<Message>,
-) -> Fallible<()>
+) -> Result<()>
 where
     I: AsyncBufReadExt + Unpin + Send + 'static,
 {
@@ -158,7 +158,7 @@ impl RPCClient for Client {
         &self,
         message_id: &jsonrpc_core::Id,
         message: serde_json::Value,
-    ) -> Fallible<()> {
+    ) -> Result<()> {
         let message = jsonrpc_core::Output::Success(jsonrpc_core::Success {
             jsonrpc: Some(jsonrpc_core::Version::V2),
             result: serde_json::to_value(message)?,
@@ -173,7 +173,7 @@ impl RPCClient for Client {
         self.reader_rx.clone()
     }
 
-    fn notify<M>(&self, method: &str, message: M) -> Fallible<()>
+    fn notify<M>(&self, method: &str, message: M) -> Result<()>
     where
         M: Serialize,
     {
@@ -187,7 +187,7 @@ impl RPCClient for Client {
         Ok(())
     }
 
-    fn call<M, R>(&self, method: &str, message: M) -> Fallible<R>
+    fn call<M, R>(&self, method: &str, message: M) -> Result<R>
     where
         M: Serialize,
         R: DeserializeOwned,
@@ -208,9 +208,7 @@ impl RPCClient for Client {
         let message = rx.recv()?;
         match message {
             jsonrpc_core::Output::Success(s) => Ok(serde_json::from_value(s.result)?),
-            jsonrpc_core::Output::Failure(s) => {
-                failure::bail!(s.error)
-            }
+            jsonrpc_core::Output::Failure(s) => Err(anyhow::anyhow!(s.error)),
         }
     }
 }

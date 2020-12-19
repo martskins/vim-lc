@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::Context;
 use crate::{rpc::RPCClient, vim};
-use failure::Fallible;
+use anyhow::Result;
 use lsp_types::{
     notification::{self, Notification},
     request::{self, Request},
@@ -18,7 +18,7 @@ use lsp_types::{
 pub async fn formatting<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     text_document: &str,
-) -> Fallible<Vec<TextEdit>> {
+) -> Result<Vec<TextEdit>> {
     let tab_size = crate::vim::getbufvar(ctx, "&shiftwidth")?;
     let insert_spaces: bool = crate::vim::getbufvar::<u8, _, _>(ctx, "&expandtab")? == 1;
     let params = DocumentFormattingParams {
@@ -53,7 +53,7 @@ pub async fn formatting<C: RPCClient, S: RPCClient>(
 pub async fn code_action<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::SelectionRange,
-) -> Fallible<Vec<CodeActionOrCommand>> {
+) -> Result<Vec<CodeActionOrCommand>> {
     let params = CodeActionParams {
         text_document: TextDocumentIdentifier {
             uri: Url::from_file_path(input.text_document).unwrap(),
@@ -89,7 +89,7 @@ pub async fn code_action<C: RPCClient, S: RPCClient>(
 pub async fn code_lens<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::TextDocumentIdentifier,
-) -> Fallible<Vec<CodeLens>> {
+) -> Result<Vec<CodeLens>> {
     let params = CodeLensParams {
         text_document: TextDocumentIdentifier {
             uri: Url::from_file_path(input.text_document.clone()).unwrap(),
@@ -118,7 +118,7 @@ pub async fn code_lens<C: RPCClient, S: RPCClient>(
 pub async fn implementation<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::CursorPosition,
-) -> Fallible<Option<request::GotoImplementationResponse>> {
+) -> Result<Option<request::GotoImplementationResponse>> {
     let input: TextDocumentPositionParams = input.into();
     let message: Option<request::GotoImplementationResponse> = ctx
         .server
@@ -131,7 +131,7 @@ pub async fn implementation<C: RPCClient, S: RPCClient>(
 pub async fn references<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::CursorPosition,
-) -> Fallible<Option<Vec<lsp_types::Location>>> {
+) -> Result<Option<Vec<lsp_types::Location>>> {
     let input: ReferenceParams = input.into();
     let message: Option<Vec<lsp_types::Location>> = ctx
         .server
@@ -144,7 +144,7 @@ pub async fn references<C: RPCClient, S: RPCClient>(
 pub async fn definition<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     params: vim::CursorPosition,
-) -> Fallible<Option<request::GotoDefinitionResponse>> {
+) -> Result<Option<request::GotoDefinitionResponse>> {
     let input: TextDocumentPositionParams = params.into();
     let message: Option<request::GotoDefinitionResponse> = ctx
         .server
@@ -157,7 +157,7 @@ pub async fn definition<C: RPCClient, S: RPCClient>(
 pub async fn did_save<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::TextDocumentContent,
-) -> Fallible<()> {
+) -> Result<()> {
     let input = DidSaveTextDocumentParams {
         text_document: TextDocumentIdentifier {
             uri: Url::from_file_path(input.text_document).unwrap(),
@@ -173,7 +173,7 @@ pub async fn did_save<C: RPCClient, S: RPCClient>(
 pub async fn did_close<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::TextDocumentContent,
-) -> Fallible<()> {
+) -> Result<()> {
     let _ = ctx
         .state
         .write()
@@ -195,7 +195,7 @@ pub async fn did_close<C: RPCClient, S: RPCClient>(
 pub async fn did_change<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::TextDocumentContent,
-) -> Fallible<()> {
+) -> Result<()> {
     let (version, _) = ctx
         .state
         .read()
@@ -231,7 +231,7 @@ pub async fn did_change<C: RPCClient, S: RPCClient>(
 pub async fn rename<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::RenameParams,
-) -> Fallible<Option<WorkspaceEdit>> {
+) -> Result<Option<WorkspaceEdit>> {
     let params = RenameParams {
         text_document_position: input.position.into(),
         new_name: input.new_name,
@@ -249,7 +249,7 @@ pub async fn rename<C: RPCClient, S: RPCClient>(
 pub async fn did_open<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::TextDocumentContent,
-) -> Fallible<()> {
+) -> Result<()> {
     let mut state = ctx.state.write();
     let mut version = state.text_documents.get(&input.text_document).cloned();
 
@@ -281,7 +281,7 @@ pub async fn did_open<C: RPCClient, S: RPCClient>(
 pub async fn hover<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::CursorPosition,
-) -> Fallible<Option<Hover>> {
+) -> Result<Option<Hover>> {
     let input: TextDocumentPositionParams = input.into();
     let response: Option<Hover> = ctx
         .server
@@ -294,7 +294,7 @@ pub async fn hover<C: RPCClient, S: RPCClient>(
 pub async fn completion<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::CursorPosition,
-) -> Fallible<Option<CompletionResponse>> {
+) -> Result<Option<CompletionResponse>> {
     let input = CompletionParams {
         text_document_position: input.into(),
         work_done_progress_params: Default::default(),
@@ -314,7 +314,7 @@ pub async fn completion<C: RPCClient, S: RPCClient>(
 pub async fn completion_item_resolve<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::CompletionItem,
-) -> Fallible<CompletionItem> {
+) -> Result<CompletionItem> {
     let params: CompletionItem = input.into();
     let message: CompletionItem = ctx
         .server
@@ -328,7 +328,7 @@ pub async fn completion_item_resolve<C: RPCClient, S: RPCClient>(
 pub fn publish_diagnostics<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: PublishDiagnosticsParams,
-) -> Fallible<()> {
+) -> Result<()> {
     if input.diagnostics.is_empty() {
         return Ok(());
     }

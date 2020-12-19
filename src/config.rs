@@ -1,19 +1,44 @@
-use failure::Fallible;
+use crate::rpc::RPCClient;
+use anyhow::Result;
+use jsonrpc_core::Value;
 use serde::Deserialize;
 use std::collections::HashMap;
-use tokio::io::AsyncReadExt;
 
 #[derive(Debug, Clone, Default, Deserialize)]
-#[serde(default)]
-pub struct Config {
-    pub log: Log,
-    pub diagnostics: Diagnostics,
-    pub completion: Completion,
-    pub hover: Hover,
-    pub locations: Locations,
-    pub servers: HashMap<String, String>,
-    pub features: FeatureFlags,
+pub struct ServerConfig {
+    pub name: String,
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub initialization_options: Value,
+    #[serde(default)]
+    pub features: FeatureSet,
 }
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct FeatureSet {}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct Config {
+    pub servers: HashMap<String, ServerConfig>,
+    #[serde(default)]
+    pub log: Log,
+    #[serde(default)]
+    pub hover: Hover,
+}
+
+// #[derive(Debug, Clone, Default, Deserialize)]
+// #[serde(default)]
+// pub struct Config {
+//     pub log: Log,
+//     pub diagnostics: Diagnostics,
+//     pub completion: Completion,
+//     pub hover: Hover,
+//     pub locations: Locations,
+//     pub servers: HashMap<String, String>,
+//     pub features: FeatureFlags,
+// }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Completion {
@@ -158,20 +183,12 @@ impl Default for Diagnostics {
 }
 
 impl Config {
-    pub async fn parse(path: &str) -> Fallible<Config> {
-        if path.is_empty() {
-            return Ok(Config::default());
-        }
+    pub fn parse<C: RPCClient>(vim: &C) -> Result<Config> {
+        let req = r#"{
+            "servers": get(g:, 'vlc#servers', {}),
+        }"#;
 
-        let file = tokio::fs::File::open(path).await;
-        if let Err(err) = file {
-            log::error!("Could not open config file: {}", err);
-            return Ok(Config::default());
-        }
-
-        let mut config = String::new();
-        file.unwrap().read_to_string(&mut config).await?;
-        let config = toml::from_str(config.as_str())?;
+        let config: Config = vim.call("eval", [req.replace("\n", "")])?;
         Ok(config)
     }
 }

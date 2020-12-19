@@ -100,6 +100,11 @@ imap <expr><C-k> pumvisible() ?
 let g:SuperTabDefaultCompletionType = '<c-n>'
 " }}}
 
+let g:vlc#servers = {
+      \ 'go': { 'name': 'gopls', 'command': 'gopls' },
+      \ 'rust': { 'name': 'rust-analyzer', 'command': 'rust-analyzer' },
+      \ }
+
 nmap <silent>gd :VLCDefinition<CR>
 nmap <silent>gi :VLCImplementation<CR>
 nmap <silent>gr :VLCReferences<CR>

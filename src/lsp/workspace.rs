@@ -1,10 +1,10 @@
 use super::Context;
 use crate::rpc::RPCClient;
-use failure::Fallible;
+use anyhow::Result;
 use lsp_types::{request, WorkDoneProgressParams};
 use lsp_types::{request::Request, ExecuteCommandParams};
 
-pub fn execute_command<C, S>(ctx: &Context<C, S>, command: &lsp_types::Command) -> Fallible<()>
+pub fn execute_command<C, S>(ctx: &Context<C, S>, command: &lsp_types::Command) -> Result<()>
 where
     C: RPCClient,
     S: RPCClient,
@@ -24,7 +24,7 @@ where
 pub fn apply_edit<C, S>(
     ctx: &Context<C, S>,
     params: &lsp_types::ApplyWorkspaceEditParams,
-) -> Fallible<()>
+) -> Result<()>
 where
     C: RPCClient,
     S: RPCClient,

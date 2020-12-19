@@ -2,10 +2,10 @@ pub mod rust_analyzer;
 
 use super::Context;
 use crate::rpc::RPCClient;
-use failure::Fallible;
+use anyhow::Result;
 use lsp_types::*;
 
-pub async fn run_command<C, S>(ctx: &Context<C, S>, cmd: &Command) -> Fallible<()>
+pub async fn run_command<C, S>(ctx: &Context<C, S>, cmd: &Command) -> Result<()>
 where
     C: RPCClient,
     S: RPCClient,

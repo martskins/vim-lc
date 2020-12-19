@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::vim;
 use crate::{lsp::Context, rpc::RPCClient};
-use failure::Fallible;
+use anyhow::Result;
 use lsp_types::*;
 use serde::*;
 use serde_json::Value;
@@ -58,7 +58,7 @@ enum GenericRunnableKind {
 pub(super) fn apply_source_change<C, S>(
     ctx: &Context<C, S>,
     arguments: &Option<Vec<Value>>,
-) -> Fallible<()>
+) -> Result<()>
 where
     C: RPCClient,
     S: RPCClient,
@@ -78,7 +78,7 @@ where
 pub(super) async fn show_references<C, S>(
     ctx: &Context<C, S>,
     arguments: &Option<Vec<Value>>,
-) -> Fallible<()>
+) -> Result<()>
 where
     C: RPCClient,
     S: RPCClient,
@@ -96,7 +96,7 @@ where
     Ok(())
 }
 
-pub(super) fn run<C, S>(ctx: &Context<C, S>, arguments: &Option<Vec<Value>>) -> Fallible<()>
+pub(super) fn run<C, S>(ctx: &Context<C, S>, arguments: &Option<Vec<Value>>) -> Result<()>
 where
     C: RPCClient,
     S: RPCClient,

@@ -1,4 +1,4 @@
-use failure::Fallible;
+use anyhow::Result;
 use jsonrpc_core::Params;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
@@ -9,12 +9,12 @@ pub trait RPCClient: Send + Sync + Clone + 'static {
         I: tokio::io::AsyncBufReadExt + Unpin + Send + 'static,
         O: tokio::io::AsyncWrite + Unpin + Send + 'static;
     fn get_reader(&self) -> crossbeam::channel::Receiver<Message>;
-    fn reply_success(&self, id: &jsonrpc_core::Id, message: serde_json::Value) -> Fallible<()>;
-    fn call<M, R>(&self, method: &str, message: M) -> Fallible<R>
+    fn reply_success(&self, id: &jsonrpc_core::Id, message: serde_json::Value) -> Result<()>;
+    fn call<M, R>(&self, method: &str, message: M) -> Result<R>
     where
         M: Serialize,
         R: DeserializeOwned;
-    fn notify<M>(&self, method: &str, message: M) -> Fallible<()>
+    fn notify<M>(&self, method: &str, message: M) -> Result<()>
     where
         M: Serialize;
 }
@@ -47,14 +47,14 @@ impl Message {
 }
 
 pub trait ToParams {
-    fn to_params(self) -> Fallible<Params>;
+    fn to_params(self) -> Result<Params>;
 }
 
 impl<T> ToParams for T
 where
     T: Serialize,
 {
-    fn to_params(self) -> Fallible<Params> {
+    fn to_params(self) -> Result<Params> {
         let json_value = serde_json::to_value(self)?;
 
         let params = match json_value {

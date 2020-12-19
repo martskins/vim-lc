@@ -5,22 +5,22 @@ mod rpc;
 mod state;
 mod vim;
 
+use anyhow::Result;
 use config::Config;
-use failure::Fallible;
 use language_client::LanguageClient;
+use rpc::RPCClient;
 use std::str::FromStr;
-use structopt::StructOpt;
-
-#[derive(StructOpt)]
-struct Opts {
-    #[structopt(short, long, default_value = "~/.vlc/config.toml")]
-    config: String,
-}
+use tokio::io::BufReader;
 
 #[tokio::main]
-async fn main() -> Fallible<()> {
-    let opts = Opts::from_args();
-    let config = Config::parse(shellexpand::tilde(&opts.config).as_ref()).await?;
+async fn main() -> Result<()> {
+    let vim = crate::rpc::Client::new(
+        rpc::ServerID::VIM,
+        BufReader::new(tokio::io::stdin()),
+        tokio::io::stdout(),
+    );
+    let config = Config::parse(&vim)?;
+
     fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
@@ -35,10 +35,14 @@ async fn main() -> Fallible<()> {
         .apply()
         .unwrap();
 
-    let lc: LanguageClient<rpc::Client, rpc::Client> = language_client::LanguageClient::new(config);
+    let lc: LanguageClient<rpc::Client, rpc::Client> =
+        language_client::LanguageClient::new(vim, config);
 
-    // Create a background thread which checks for deadlocks every 10s
+    deadlock_detection();
+    Ok(lc.run().await)
+}
 
+fn deadlock_detection() {
     use parking_lot::deadlock;
     use std::thread;
     use std::time::Duration;
@@ -58,6 +62,4 @@ async fn main() -> Fallible<()> {
             }
         }
     });
-
-    lc.run().await
 }
