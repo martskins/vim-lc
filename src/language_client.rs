@@ -28,7 +28,7 @@ where
 }
 
 impl<C: RPCClient, S: RPCClient> Context<C, S> {
-    pub async fn new(message: &Message, lc: &LanguageClient<C, S>) -> Self {
+    pub fn new(message: &Message, lc: &LanguageClient<C, S>) -> Self {
         let message_id = message.id();
         let language_id = match message {
             Message::MethodCall(msg) => Into::<Value>::into(msg.params.clone())

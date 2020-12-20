@@ -328,11 +328,7 @@ pub fn publish_diagnostics<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: PublishDiagnosticsParams,
 ) -> Result<()> {
-    if input.diagnostics.is_empty() {
-        return Ok(());
-    }
-
-    let uri = input.uri.to_string();
+    let uri = input.uri.to_string().replace(ctx.root_path.as_str(), "");
     let diagnostics = input
         .diagnostics
         .into_iter()
@@ -345,6 +341,6 @@ pub fn publish_diagnostics<C: RPCClient, S: RPCClient>(
         })
         .collect();
 
-    crate::vim::show_diagnostics(ctx, diagnostics)?;
+    crate::vim::show_diagnostics(ctx, &uri, diagnostics)?;
     Ok(())
 }

@@ -1,3 +1,4 @@
+use lsp_types::DiagnosticSeverity;
 use serde::{Deserialize, Serialize};
 
 pub trait ListItem {
@@ -238,6 +239,7 @@ pub struct Sign {
     pub id: u64,
     pub line: u64,
     pub file: String,
+    pub sign: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -252,10 +254,15 @@ pub struct Diagnostic {
 impl Into<Sign> for Diagnostic {
     fn into(self) -> Sign {
         Sign {
-            // TODO: not sure what id should be, need to check vim docs
-            id: 1,
+            id: 42_000 + self.line * DiagnosticSeverity::Hint as u64 + self.severity as u64,
             line: self.line,
             file: self.text_document,
+            sign: match self.severity {
+                DiagnosticSeverity::Error => "VLCSignError".into(),
+                DiagnosticSeverity::Warning => "VLCSignWarn".into(),
+                DiagnosticSeverity::Information => "VLCSignInfo".into(),
+                DiagnosticSeverity::Hint => "VLCSignHint".into(),
+            },
         }
     }
 }

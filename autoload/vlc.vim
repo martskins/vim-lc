@@ -54,6 +54,7 @@ function! vlc#shutdown() abort
 endfunction
 
 function! vlc#resolve_completion() abort
+  echom expand('<cword>')
   " call lsp#completionItemResolve(funcref('s:doEcho'))
 endfunction
 
@@ -65,29 +66,6 @@ endfunction
 function! vlc#stop() abort
   call rpc#call('shutdown', {'language_id': &filetype})
   let s:running[&filetype] = v:false
-endfunction
-
-function! vlc#register_ncm2(params) abort
-  let l:complete_pattern = a:params['complete_pattern']
-  let l:cpp = []
-  for cp in l:complete_pattern
-    let l:cpp = add(l:cpp, escape(cp, '.\/:'))
-  endfor
-  call ncm2#register_source({
-      \ 'name' : 'vlc',
-      \ 'scope': [a:params['language_id']],
-      \ 'priority': 9,
-      \ 'mark': 'VLC',
-      \ 'subscope_enable': 1,
-      \ 'complete_length': -1,
-      \ 'complete_pattern': l:cpp,
-      \ 'on_complete': ['vlc#ncm2_completion'],
-      \ })
-endfunction
-
-" ncm2 completion func
-function! vlc#ncm2_completion(ctx) abort
-  call lsp#completion(funcref('vlc#ncm_do_complete', [a:ctx]))
 endfunction
 
 " omnifunc completion func
@@ -102,9 +80,4 @@ endfunction
 " ncm2 completion callback to populate completion list
 function! vlc#do_complete(res) abort
   call complete(col('.'), a:res['words'])
-endfunction
-
-" ncm2 completion callback to populate completion list
-function! vlc#ncm_do_complete(ctx, res) abort
-  call ncm2#complete(a:ctx, col('.'), a:res['words'], 0)
 endfunction

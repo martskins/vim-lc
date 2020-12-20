@@ -23,7 +23,7 @@ pub async fn register_ncm2_source<C: RPCClient, S: RPCClient>(ctx: &Context<C, S
         "language_id": ctx.language_id,
     });
 
-    ctx.vim
-        .notify("vlc#register_ncm2", serde_json::json!([params]))?;
+    // ctx.vim
+    //     .notify("vlc#register_ncm2", serde_json::json!([params]))?;
     Ok(())
 }

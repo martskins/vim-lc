@@ -17,12 +17,23 @@ pub struct ServerConfig {
     pub features: FeatureSet,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct FeatureSet {
     pub code_lenses: bool,
     pub code_actions: bool,
     pub completion: bool,
     pub diagnostics: bool,
+}
+
+impl Default for FeatureSet {
+    fn default() -> Self {
+        Self {
+            code_lenses: true,
+            code_actions: true,
+            completion: true,
+            diagnostics: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

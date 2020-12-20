@@ -13,13 +13,21 @@ command! VLCHover           call vlc#hover()
 command! VLCStop            call vlc#shutdown()
 command! VLCStart           call vim#start()
 
-call sign_define('vlc_error', {
+call sign_define('VLCSignError', {
   \ 'text' : '!!',
   \ 'texthl' : 'Error' })
 
-call sign_define('vlc_warn', {
-  \ 'text' : '--',
+call sign_define('VLCSignWarn', {
+  \ 'text' : '!',
   \ 'texthl' : 'Warn'})
+
+call sign_define('VLCSignInfo', {
+  \ 'text' : '>>',
+  \ 'texthl' : 'Info'})
+
+call sign_define('VLCSignHint', {
+  \ 'text' : '>',
+  \ 'texthl' : 'Hint'})
 
 augroup vlc
     autocmd!
@@ -31,4 +39,5 @@ augroup vlc
     autocmd TextChangedP  *   call lsp#did_change()
     autocmd TextChangedI  *   call lsp#did_change()
     autocmd CompleteDone  *   call vlc#resolve_completion()
+    autocmd InsertCharPre *   call vim#trigger_completion()
 augroup END

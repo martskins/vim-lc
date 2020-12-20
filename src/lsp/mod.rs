@@ -22,7 +22,7 @@ where
 {
     // handles messages sent from vim to the language client
     pub async fn handle_message(&self, message: rpc::Message) -> Result<()> {
-        let ctx = Context::new(&message, self).await;
+        let ctx = Context::new(&message, self);
         match message {
             rpc::Message::MethodCall(msg) => match msg.method.as_str() {
                 "workspace/applyEdit" => {

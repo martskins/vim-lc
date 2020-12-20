@@ -181,11 +181,29 @@ function! vim#show_message(params) abort
   echo l:level . ': ' . a:params['message']
 endfunction
 
-function! vim#set_signs(params) abort
+function! vim#clear_signs(file) abort
+  echom a:file
+  if !exists('*sign_unplace')
+    execute 'sign unplace * group=VLC buffer=' . a:file
+  else
+    call sign_unplace('VLC', { 'buffer': a:file })
+  endif
+endfunction
+
+function! vim#place_sign(id, name, file, line) abort
+  if !exists('*sign_place')
+    execute 'sign place id=' . a:id . ' name=' . a:name . ' file=' . a:file . ' line=' . a:line
+  endif
+
+  call sign_place(a:id, 'VLC', a:name, a:file, { 'lnum': a:line })
+endfunction
+
+function! vim#set_signs(file, params) abort
+  call vim#clear_signs(a:file)
   for l:sign in a:params
-    if bufexists(l:sign['file'])
-      call sign_place(l:sign['id'], '', 'vlc_warn', l:sign['file'], { 'lnum': l:sign['line'] })
-    endif
+    echom l:sign['id']
+    call vim#place_sign(l:sign['id'], l:sign['sign'], a:file, l:sign['line'])
+    " call sign_place(l:sign['id'], 'VLC', 'vlc_warn', l:sign['file'], { 'lnum': l:sign['line'] })
   endfor
 endfunction
 
@@ -304,4 +322,8 @@ endfunction
 
 function! s:resolve_code_action(selection) abort
   call s:resolve_action('vlc/resolveCodeAction', a:selection)
+endfunction
+
+function! vim#trigger_completion()
+  call feedkeys("\<C-x>\<C-o>", "n")
 endfunction

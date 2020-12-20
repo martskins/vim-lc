@@ -29,7 +29,7 @@ where
             _ => {}
         }
 
-        let ctx = Context::new(&message, self).await;
+        let ctx = Context::new(&message, self);
         match message {
             rpc::Message::MethodCall(msg) => match msg.method.as_str() {
                 "initialize" => {
@@ -187,18 +187,15 @@ pub fn apply_workspace_edit<C: RPCClient, S: RPCClient>(
 
 pub fn show_diagnostics<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
-    mut diagnostics: Vec<Diagnostic>,
+    file: &str,
+    diagnostics: Vec<Diagnostic>,
 ) -> Result<()> {
-    diagnostics.iter_mut().for_each(|d| {
-        d.text_document = d.text_document.replace(ctx.root_path.as_str(), "");
-    });
-
     let quickfix_list: Vec<QuickfixItem> =
         diagnostics.clone().into_iter().map(|l| l.into()).collect();
     set_quickfix(ctx, quickfix_list)?;
 
     let signs: Vec<Sign> = diagnostics.into_iter().map(|l| l.into()).collect();
-    set_signs(ctx, signs)?;
+    set_signs(ctx, file, signs)?;
 
     Ok(())
 }
@@ -356,8 +353,13 @@ pub fn execute<C: RPCClient, S: RPCClient>(
     Ok(res)
 }
 
-pub fn set_signs<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, list: Vec<Sign>) -> Result<()> {
-    ctx.vim.notify("vim#set_signs", serde_json::json!([list]))?;
+pub fn set_signs<C: RPCClient, S: RPCClient>(
+    ctx: &Context<C, S>,
+    filename: &str,
+    list: Vec<Sign>,
+) -> Result<()> {
+    ctx.vim
+        .notify("vim#set_signs", serde_json::json!([filename, list]))?;
     Ok(())
 }
 
