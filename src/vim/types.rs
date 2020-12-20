@@ -1,4 +1,4 @@
-use lsp_types::DiagnosticSeverity;
+use lsp_types::{DiagnosticSeverity, PartialResultParams};
 use serde::{Deserialize, Serialize};
 
 pub trait ListItem {
@@ -42,8 +42,8 @@ pub struct LocationWithPreview {
 #[derive(Debug, Serialize)]
 pub struct LocationItem {
     pub filename: String,
-    pub lnum: u64,
-    pub col: u64,
+    pub lnum: u32,
+    pub col: u32,
     pub text: String,
 }
 
@@ -119,7 +119,7 @@ pub struct Lines {
 
 #[derive(Debug, Serialize)]
 pub struct Line {
-    pub line: u64,
+    pub line: u32,
     pub text: String,
 }
 
@@ -133,7 +133,7 @@ pub struct RenameParams {
 #[derive(Debug, Serialize)]
 pub struct VirtualText {
     pub text: String,
-    pub line: u64,
+    pub line: u32,
     pub hl_group: HLGroup,
 }
 
@@ -236,8 +236,8 @@ pub struct PreviewContent {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Sign {
-    pub id: u64,
-    pub line: u64,
+    pub id: u32,
+    pub line: u32,
     pub file: String,
     pub sign: String,
 }
@@ -245,8 +245,8 @@ pub struct Sign {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Diagnostic {
     pub text_document: String,
-    pub line: u64,
-    pub col: u64,
+    pub line: u32,
+    pub col: u32,
     pub text: String,
     pub severity: lsp_types::DiagnosticSeverity,
 }
@@ -254,7 +254,7 @@ pub struct Diagnostic {
 impl Into<Sign> for Diagnostic {
     fn into(self) -> Sign {
         Sign {
-            id: 42_000 + self.line * DiagnosticSeverity::Hint as u64 + self.severity as u64,
+            id: 42_000 + self.line * DiagnosticSeverity::Hint as u32 + self.severity as u32,
             line: self.line,
             file: self.text_document,
             sign: match self.severity {
@@ -320,8 +320,8 @@ pub struct ExecuteParams {
 pub struct QuickfixItem {
     pub bufnr: u64,
     pub filename: String,
-    pub lnum: u64,
-    pub col: u64,
+    pub lnum: u32,
+    pub col: u32,
     pub text: String,
     pub kind: char,
 }
@@ -405,6 +405,7 @@ impl Into<lsp_types::ReferenceParams> for CursorPosition {
             context: lsp_types::ReferenceContext {
                 include_declaration: false,
             },
+            partial_result_params: PartialResultParams::default(),
         }
     }
 }
@@ -450,9 +451,9 @@ impl Into<lsp_types::Range> for Range {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Position {
     /// line position in a buffer, one-based
-    pub line: u64,
+    pub line: u32,
     /// column position in a buffer, one-based
-    pub column: u64,
+    pub column: u32,
 }
 
 impl Into<lsp_types::Position> for Position {

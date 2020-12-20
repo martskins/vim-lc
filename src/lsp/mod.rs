@@ -11,7 +11,7 @@ use anyhow::Result;
 use lsp_types::{
     notification::{self, Notification},
     request::{self, Request},
-    ClientCapabilities, ClientInfo, HoverCapability, InitializeParams, InitializeResult,
+    ClientCapabilities, ClientInfo, HoverClientCapabilities, InitializeParams, InitializeResult,
     InitializedParams, TextDocumentClientCapabilities, TraceOption, Url,
 };
 
@@ -76,7 +76,7 @@ where
         initialization_options: server_command.initialization_options.clone(),
         capabilities: ClientCapabilities {
             text_document: Some(TextDocumentClientCapabilities {
-                hover: Some(HoverCapability {
+                hover: Some(HoverClientCapabilities {
                     content_format: Some(ctx.config.hover.preferred_markup_kind.clone()),
                     ..Default::default()
                 }),
@@ -90,6 +90,7 @@ where
             name: "vim-lc".into(),
             version: Some("1.0".into()),
         }),
+        locale: None,
     };
 
     let res: InitializeResult = ctx

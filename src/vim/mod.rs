@@ -168,10 +168,14 @@ pub fn apply_workspace_edit<C: RPCClient, S: RPCClient>(
                     changes: tde
                         .edits
                         .into_iter()
-                        .map(|e| BufChanges {
-                            start: e.range.start.into(),
-                            end: e.range.end.into(),
-                            lines: vec![e.new_text],
+                        .filter_map(|e| match e {
+                            lsp_types::OneOf::Left(e) => Some(BufChanges {
+                                start: e.range.start.into(),
+                                end: e.range.end.into(),
+                                lines: vec![e.new_text],
+                            }),
+                            // annotated text edits are not supported yet
+                            lsp_types::OneOf::Right(_) => None,
                         })
                         .collect(),
                 }
@@ -392,7 +396,7 @@ pub fn show_message<C: RPCClient, S: RPCClient>(
 pub async fn get_line<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     filename: &str,
-    line_number: u64,
+    line_number: u32,
 ) -> Result<String> {
     let state = ctx.state.read();
     let text_document = state.text_documents.get(filename).cloned();
@@ -536,14 +540,14 @@ pub async fn implementation<C: RPCClient, S: RPCClient>(
     }
 
     match response.unwrap() {
-        lsp_types::request::GotoDefinitionResponse::Scalar(l) => {
+        lsp_types::GotoDefinitionResponse::Scalar(l) => {
             crate::vim::jump_to_location(ctx, l.into())?
         }
-        lsp_types::request::GotoDefinitionResponse::Array(ll) => {
+        lsp_types::GotoDefinitionResponse::Array(ll) => {
             let locations = ll.into_iter().map(|l| l.into()).collect();
             crate::vim::show_locations(ctx, locations).await?
         }
-        lsp_types::request::GotoDefinitionResponse::Link(ll) => {
+        lsp_types::GotoDefinitionResponse::Link(ll) => {
             let locations = ll.into_iter().map(|l| l.into()).collect();
             crate::vim::show_locations(ctx, locations).await?
         }
@@ -792,14 +796,14 @@ pub async fn definition<C: RPCClient, S: RPCClient>(
     }
 
     match response.unwrap() {
-        lsp_types::request::GotoDefinitionResponse::Scalar(l) => {
+        lsp_types::GotoDefinitionResponse::Scalar(l) => {
             crate::vim::jump_to_location(ctx, l.into())?
         }
-        lsp_types::request::GotoDefinitionResponse::Array(ll) => {
+        lsp_types::GotoDefinitionResponse::Array(ll) => {
             let locations = ll.into_iter().map(|l| l.into()).collect();
             crate::vim::show_locations(ctx, locations).await?
         }
-        lsp_types::request::GotoDefinitionResponse::Link(ll) => {
+        lsp_types::GotoDefinitionResponse::Link(ll) => {
             let locations = ll.into_iter().map(|l| l.into()).collect();
             crate::vim::show_locations(ctx, locations).await?
         }

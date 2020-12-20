@@ -7,10 +7,11 @@ use lsp_types::{
     CodeActionContext, CodeActionOrCommand, CodeActionParams, CodeActionResponse, CodeLens,
     CodeLensParams, CompletionItem, CompletionParams, CompletionResponse, DiagnosticSeverity,
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, DocumentFormattingParams, FormattingOptions, Hover,
-    PublishDiagnosticsParams, Range, ReferenceParams, RenameParams, TextDocumentContentChangeEvent,
-    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, TextEdit, Url,
-    VersionedTextDocumentIdentifier, WorkDoneProgressParams, WorkspaceEdit,
+    DidSaveTextDocumentParams, DocumentFormattingParams, FormattingOptions, GotoDefinitionResponse,
+    Hover, PublishDiagnosticsParams, Range, ReferenceParams, RenameParams,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
+    TextDocumentPositionParams, TextEdit, Url, VersionedTextDocumentIdentifier,
+    WorkDoneProgressParams, WorkspaceEdit,
 };
 use std::collections::HashMap;
 
@@ -143,9 +144,9 @@ pub async fn references<C: RPCClient, S: RPCClient>(
 pub async fn definition<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     params: vim::CursorPosition,
-) -> Result<Option<request::GotoDefinitionResponse>> {
+) -> Result<Option<GotoDefinitionResponse>> {
     let input: TextDocumentPositionParams = params.into();
-    let message: Option<request::GotoDefinitionResponse> = ctx
+    let message: Option<GotoDefinitionResponse> = ctx
         .server
         .as_ref()
         .unwrap()
@@ -161,6 +162,7 @@ pub async fn did_save<C: RPCClient, S: RPCClient>(
         text_document: TextDocumentIdentifier {
             uri: Url::from_file_path(input.text_document).unwrap(),
         },
+        text: None,
     };
 
     ctx.server
@@ -212,7 +214,7 @@ pub async fn did_change<C: RPCClient, S: RPCClient>(
     let input = DidChangeTextDocumentParams {
         text_document: VersionedTextDocumentIdentifier {
             uri: Url::from_file_path(input.text_document).unwrap(),
-            version: Some(version as i64),
+            version: version as i32,
         },
         content_changes: vec![TextDocumentContentChangeEvent {
             range: None,
@@ -266,7 +268,7 @@ pub async fn did_open<C: RPCClient, S: RPCClient>(
         text_document: TextDocumentItem {
             uri: Url::from_file_path(input.text_document).unwrap(),
             language_id: input.language_id,
-            version: version as i64,
+            version: version as i32,
             text: input.text,
         },
     };
