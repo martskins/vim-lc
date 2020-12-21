@@ -330,7 +330,12 @@ pub fn publish_diagnostics<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: PublishDiagnosticsParams,
 ) -> Result<()> {
-    let uri = input.uri.to_string().replace(ctx.root_path.as_str(), "");
+    let uri = input.uri.to_string().replace("file://", "");
+    ctx.state
+        .write()
+        .diagnostics
+        .insert(uri.clone(), input.diagnostics.clone());
+
     let diagnostics = input
         .diagnostics
         .into_iter()

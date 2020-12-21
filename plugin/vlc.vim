@@ -1,17 +1,4 @@
-call call('vim#start', [])
-
-set omnifunc=vlc#completion
-
-command! VLCFormatting      call vlc#formatting()
-command! VLCDefinition      call vlc#definition()
-command! VLCImplementation  call vlc#implementation()
-command! VLCReferences      call vlc#references()
-command! VLCCodeAction      call vlc#code_action()
-command! VLCCodeLensAction  call vlc#code_lens_action()
-command! VLCRename          call vlc#rename()
-command! VLCHover           call vlc#hover()
-command! VLCStop            call vlc#shutdown()
-command! VLCStart           call vim#start()
+call call('vlc#run', [])
 
 call sign_define('VLCSignError', {
   \ 'text' : '!!',
@@ -29,15 +16,55 @@ call sign_define('VLCSignHint', {
   \ 'text' : '>',
   \ 'texthl' : 'Hint'})
 
-augroup vlc
-    autocmd!
-    autocmd FileType      *   call vlc#did_open()
-    autocmd TextChanged   *   call lsp#did_change()
-    autocmd BufWritePost  *   call lsp#did_save()
-    autocmd BufWinLeave   *   call lsp#did_close()
-    autocmd VimLeavePre   *   call lsp#exit()
-    autocmd TextChangedP  *   call lsp#did_change()
-    autocmd TextChangedI  *   call lsp#did_change()
-    autocmd CompleteDone  *   call vlc#resolve_completion()
-    autocmd InsertCharPre *   call vim#trigger_completion()
+function! s:configure()
+  if !vlc#has_server_configured(&filetype)
+    return
+  endif
+
+  set omnifunc=vlc#completion
+
+  command! VLCFormatting          call vlc#formatting()
+  command! VLCDefinition          call vlc#definition()
+  command! VLCImplementation      call vlc#implementation()
+  command! VLCReferences          call vlc#references()
+  command! VLCCodeAction          call vlc#code_action()
+  command! VLCCodeLensAction      call vlc#code_lens_action()
+  command! VLCRename              call vlc#rename()
+  command! VLCHover               call vlc#hover()
+  command! VLCStop                call vlc#shutdown()
+  command! VLCStart               call vlc#start()
+  command! VLCDiagnosticDetail    call vlc#diagnostic_detail()
+
+  nnoremap <Plug>(vlc-formatting)         :call vlc#formatting()<CR>
+  nnoremap <Plug>(vlc-definition)         :call vlc#definition()<CR>
+  nnoremap <Plug>(vlc-implementation)     :call vlc#implementation()<CR>
+  nnoremap <Plug>(vlc-references)         :call vlc#references()<CR>
+  nnoremap <Plug>(vlc-code-action)        :call vlc#code_action()<CR>
+  nnoremap <Plug>(vlc-code-lens)          :call vlc#code_lens_action()<CR>
+  nnoremap <Plug>(vlc-rename)             :call vlc#rename()<CR>
+  nnoremap <Plug>(vlc-hover)              :call vlc#hover()<CR>
+  nnoremap <Plug>(vlc-shutdown)           :call vlc#shutdown()<CR>
+  nnoremap <Plug>(vlc-start)              :call vlc#start()<CR>
+  nnoremap <Plug>(vlc-diagnostic-detail)  :call vlc#diagnostic_detail()<CR>
+
+  augroup vlc
+      autocmd!
+      autocmd TextChanged   <buffer> call lsp#did_change()
+      autocmd BufWritePost  <buffer> call lsp#did_save()
+      autocmd BufWinLeave   <buffer> call lsp#did_close()
+      autocmd VimLeavePre   <buffer> call lsp#exit()
+      autocmd TextChangedP  <buffer> call lsp#did_change()
+      autocmd TextChangedI  <buffer> call lsp#did_change()
+
+      autocmd CompleteDone  <buffer> call vlc#resolve_completion()
+      autocmd InsertCharPre <buffer> call vlc#trigger_completion()
+  augroup END
+
+  call lsp#did_open()
+endfunction
+
+augroup vlc_init
+  autocmd!
+  autocmd FileType * call s:configure()
+  autocmd BufEnter * call s:configure()
 augroup END

@@ -12,7 +12,7 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 #[derive(Debug)]
 pub struct Client {
-    server_id: ServerID,
+    server_id: ClientID,
     reader_rx: Receiver<Message>,
     writer_tx: Sender<Message>,
     pending_tx: Sender<(jsonrpc_core::Id, Sender<jsonrpc_core::Output>)>,
@@ -32,7 +32,7 @@ impl Clone for Client {
 }
 
 async fn loop_write<O>(
-    server_id: ServerID,
+    server_id: ClientID,
     mut writer: O,
     receiver: Receiver<Message>,
 ) -> Result<()>
@@ -61,7 +61,7 @@ where
 }
 
 async fn loop_read<I>(
-    server_id: ServerID,
+    server_id: ClientID,
     mut reader: I,
     pending_receiver: Receiver<(jsonrpc_core::Id, Sender<jsonrpc_core::Output>)>,
     sender: Sender<Message>,
@@ -109,7 +109,7 @@ where
 }
 
 impl RPCClient for Client {
-    fn new<I, O>(server_id: ServerID, reader: I, writer: O) -> Self
+    fn new<I, O>(server_id: ClientID, reader: I, writer: O) -> Self
     where
         I: AsyncBufReadExt + Unpin + Send + 'static,
         O: AsyncWrite + Unpin + Send + 'static,

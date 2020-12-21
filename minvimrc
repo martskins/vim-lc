@@ -7,13 +7,9 @@ call plug#end()
 
 filetype plugin indent on
 
-set expandtab
 set shiftwidth=4
-
 syntax on
-set binary
-set noshowmatch " this doesn't work on OSX, DisableMatchParen achieves the same
-set nomodeline
+set expandtab
 set number relativenumber
 set signcolumn=yes
 set hlsearch
@@ -29,14 +25,32 @@ let g:vlc#servers = {
       \     'codelens': { 'test': v:true, 'gc_details': v:true },
       \   },
       \  },
-      \ 'rust': { 'name': 'rust-analyzer', 'command': 'rust-analyzer' },
+      \ 'rust': {
+      \    'name': 'rust-analyzer',
+      \    'command': 'rust-analyzer',
+      \    'initializationOptions': {
+      \      "diagnostics": {
+      \        "disabled": ["macro-error"]
+      \      },
+      \      "procMacro": {
+      \        "enable": v:true
+      \      },
+      \      "cargo": {
+      \        "loadOutDirsFromCheck": v:true
+      \      }
+      \    }
+      \  },
       \ }
 
-nmap <silent>gd :VLCDefinition<CR>
-nmap <silent>gi :VLCImplementation<CR>
-nmap <silent>gr :VLCReferences<CR>
-nmap <silent>ga :VLCCodeAction<CR>
-nmap <silent>gl :VLCCodeLensAction<CR>
-nmap <silent>R  :VLCRename<CR>
-nmap <silent>K  :VLCHover<CR>
-nmap <silent>F  :VLCFormatting<CR>
+nmap <silent>gd <Plug>(vlc-definition)
+nmap <silent>gi <Plug>(vlc-implementation)
+nmap <silent>gr <Plug>(vlc-references)
+nmap <silent>ga <Plug>(vlc-code-action)
+nmap <silent>gl <Plug>(vlc-code-lens)
+nmap <silent>R  <Plug>(vlc-rename)
+nmap <silent>K  <Plug>(vlc-hover)
+nmap <silent>F  <Plug>(vlc-formatting)
+nmap <silent>E  <Plug>(vlc-diagnostic-detail)
+
+nmap <Left> :cprev<CR>
+nmap <Right> :cnext<CR>

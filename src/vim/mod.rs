@@ -1,4 +1,3 @@
-mod extensions;
 mod types;
 
 use crate::{config, language_client::Context};
@@ -34,15 +33,13 @@ where
             rpc::Message::MethodCall(msg) => match msg.method.as_str() {
                 "initialize" => {
                     crate::lsp::initialize(&ctx).await?;
-                    crate::lsp::initialized(&ctx).await?;
-                    // TODO: replace this with custom completion
-                    extensions::ncm2::register_ncm2_source(&ctx).await?;
+                    crate::lsp::initialized(&ctx)?;
                 }
                 "shutdown" => {
-                    crate::lsp::shutdown(&ctx).await?;
+                    crate::lsp::shutdown(&ctx)?;
                 }
                 "exit" => {
-                    crate::lsp::exit(&ctx).await?;
+                    crate::lsp::exit(&ctx)?;
                 }
                 "completionItem/resolve" => {
                     let params: CompletionItemWithContext =
@@ -54,18 +51,6 @@ where
                 }
                 "textDocument/codeLens" => {
                     code_lens(&ctx, msg.params).await?;
-                }
-                // not part of LSP
-                "vlc/codeLensAction" => {
-                    code_lens_action(&ctx, msg.params).await?;
-                }
-                // not part of LSP
-                "vlc/resolveCodeLensAction" => {
-                    resolve_code_lens_action(&ctx, msg.params).await?;
-                }
-                // not part of LSP
-                "vlc/resolveCodeAction" => {
-                    resolve_code_action(&ctx, msg.params).await?;
                 }
                 "textDocument/codeAction" => {
                     code_action(&ctx, msg.params).await?;
@@ -87,6 +72,18 @@ where
                 }
                 "textDocument/formatting" => {
                     formatting(&ctx, msg.params).await?;
+                }
+                "vlc/codeLensAction" => {
+                    code_lens_action(&ctx, msg.params).await?;
+                }
+                "vlc/resolveCodeLensAction" => {
+                    resolve_code_lens_action(&ctx, msg.params).await?;
+                }
+                "vlc/resolveCodeAction" => {
+                    resolve_code_action(&ctx, msg.params).await?;
+                }
+                "vlc/diagnosticDetail" => {
+                    diagnostic_detail(&ctx, msg.params)?;
                 }
                 _ => log::debug!("unhandled vim method call {}", msg.method),
             },
@@ -122,12 +119,67 @@ pub fn getbufvar<T: DeserializeOwned, C: RPCClient, S: RPCClient>(
     Ok(val)
 }
 
+pub fn diagnostic_detail<C: RPCClient, S: RPCClient>(
+    ctx: &Context<C, S>,
+    params: Params,
+) -> Result<()> {
+    let pos: CursorPosition = serde_json::from_value(params.into())?;
+    // let filename = ctx.filename.replace(&ctx.root_path, "");
+    let filename = ctx.filename.clone();
+    let diagnostics = ctx
+        .state
+        .read()
+        .diagnostics
+        .get(&filename)
+        .cloned()
+        .map(|d| {
+            d.into_iter()
+                .filter(|d| {
+                    pos.position.line - 1 >= d.range.start.line
+                        && pos.position.column >= d.range.start.character
+                        && pos.position.line - 1 <= d.range.end.line
+                        && pos.position.column <= d.range.end.character
+                })
+                .collect::<Vec<lsp_types::Diagnostic>>()
+        })
+        .unwrap_or_default();
+
+    if diagnostics.is_empty() {
+        return Ok(());
+    }
+
+    let lines = diagnostics
+        .first()
+        .unwrap()
+        .message
+        .split("\n")
+        .map(String::from)
+        .collect();
+
+    // todo: extract to function
+    let filetype = "text".into();
+    match ctx.config.hover.strategy {
+        config::DisplayMode::Preview => {
+            ctx.vim.notify(
+                "vlc#show_preview",
+                serde_json::json!([PreviewContent { filetype, lines }]),
+            )?;
+        }
+        config::DisplayMode::FloatingWindow => {
+            ctx.vim.notify(
+                "vlc#show_float_win",
+                serde_json::json!([PreviewContent { filetype, lines }]),
+            )?;
+        }
+    }
+    Ok(())
+}
+
 pub fn apply_text_edits<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     filename: &str,
     edits: &[lsp_types::TextEdit],
 ) -> Result<()> {
-    // let changes: &lsp_types::DocumentChanges = &edits.document_changes.as_ref().unwrap();
     let changes: Vec<BufChanges> = edits
         .into_iter()
         .map(|e| BufChanges {
@@ -143,7 +195,7 @@ pub fn apply_text_edits<C: RPCClient, S: RPCClient>(
     };
 
     ctx.vim
-        .notify("vim#apply_edit", serde_json::json!([changes]))?;
+        .notify("vlc#apply_edit", serde_json::json!([changes]))?;
     Ok(())
 }
 
@@ -185,7 +237,7 @@ pub fn apply_workspace_edit<C: RPCClient, S: RPCClient>(
     };
 
     ctx.vim
-        .notify("vim#apply_edits", serde_json::json!([changes]))?;
+        .notify("vlc#apply_edits", serde_json::json!([changes]))?;
     Ok(())
 }
 
@@ -256,13 +308,13 @@ pub fn show_hover<C: RPCClient, S: RPCClient>(
     match ctx.config.hover.strategy {
         config::DisplayMode::Preview => {
             ctx.vim.notify(
-                "vim#show_preview",
+                "vlc#show_preview",
                 serde_json::json!([PreviewContent { filetype, lines }]),
             )?;
         }
         config::DisplayMode::FloatingWindow => {
             ctx.vim.notify(
-                "vim#show_float_win",
+                "vlc#show_float_win",
                 serde_json::json!([PreviewContent { filetype, lines }]),
             )?;
         }
@@ -275,7 +327,7 @@ pub fn setloclist<C: RPCClient, S: RPCClient>(
     items: Vec<LocationItem>,
 ) -> Result<()> {
     ctx.vim
-        .notify("vim#show_locations", serde_json::json!([items, ""]))?;
+        .notify("vlc#show_locations", serde_json::json!([items, ""]))?;
 
     Ok(())
 }
@@ -287,7 +339,7 @@ pub fn selection<C: RPCClient, S: RPCClient, I: ListItem>(
     let text: Vec<String> = items.into_iter().map(|i| i.text()).collect();
     let sink = I::sink();
     ctx.vim
-        .notify("vim#selection", serde_json::json!([text, sink]))?;
+        .notify("vlc#selection", serde_json::json!([text, sink]))?;
 
     Ok(())
 }
@@ -363,7 +415,7 @@ pub fn set_signs<C: RPCClient, S: RPCClient>(
     list: Vec<Sign>,
 ) -> Result<()> {
     ctx.vim
-        .notify("vim#set_signs", serde_json::json!([filename, list]))?;
+        .notify("vlc#set_signs", serde_json::json!([filename, list]))?;
     Ok(())
 }
 
@@ -372,7 +424,7 @@ pub fn set_quickfix<C: RPCClient, S: RPCClient>(
     list: Vec<QuickfixItem>,
 ) -> Result<()> {
     ctx.vim
-        .notify("vim#set_quickfix", serde_json::json!([list]))?;
+        .notify("vlc#set_quickfix", serde_json::json!([list]))?;
     Ok(())
 }
 
@@ -389,7 +441,7 @@ pub fn show_message<C: RPCClient, S: RPCClient>(
     message: Message,
 ) -> Result<()> {
     ctx.vim
-        .notify("vim#show_message", serde_json::json!([message]))?;
+        .notify("vlc#show_message", serde_json::json!([message]))?;
     Ok(())
 }
 
@@ -717,7 +769,7 @@ pub async fn code_lens<C: RPCClient, S: RPCClient>(
     }
 
     ctx.vim
-        .notify("vim#set_virtual_texts", serde_json::json!([virtual_texts]))?;
+        .notify("vlc#set_virtual_texts", serde_json::json!([virtual_texts]))?;
     Ok(())
 }
 

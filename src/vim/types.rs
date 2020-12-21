@@ -380,11 +380,8 @@ pub struct BufInfo {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CursorPosition {
-    /// file name of the text document
     pub text_document: String,
-    /// language_id for the text document
     pub language_id: String,
-    /// position of the cursor
     #[serde(flatten)]
     pub position: Position,
 }

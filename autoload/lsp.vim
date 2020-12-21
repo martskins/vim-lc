@@ -6,6 +6,10 @@ function! lsp#initialize() abort
 endfunction
 
 function! lsp#did_open() abort
+  if !vlc#is_server_running(&filetype)
+    call vlc#start()
+  endif
+
   if s:initialized ==# v:false
     call lsp#initialize()
   endif
@@ -116,6 +120,15 @@ function! lsp#completion(callback) abort
   endif
 
   return rpc#call_with_callback('textDocument/completion', s:position(), a:callback)
+endfunction
+
+function! lsp#diagnostic_detail() abort
+  if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
+    return 0
+  endif
+
+  let l:params = s:position()
+  return rpc#call('vlc/diagnosticDetail', l:params)
 endfunction
 
 " TODO: not sure what to do with the result of completionItem/resolve

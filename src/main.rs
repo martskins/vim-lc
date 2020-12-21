@@ -15,7 +15,7 @@ use tokio::io::BufReader;
 #[tokio::main]
 async fn main() -> Result<()> {
     let vim = crate::rpc::Client::new(
-        rpc::ServerID::VIM,
+        rpc::ClientID::VIM,
         BufReader::new(tokio::io::stdin()),
         tokio::io::stdout(),
     );

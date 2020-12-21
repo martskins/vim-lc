@@ -13,4 +13,9 @@ pub struct State {
     // is the name of the text document. This hashmap will be used to fetch the code lens actions
     // in a specific line and file.
     pub code_lens: HashMap<String, Vec<lsp_types::CodeLens>>,
+    // hashmap keyed by file name and having diagnostics as values.
+    pub diagnostics: HashMap<String, Vec<lsp_types::Diagnostic>>,
+    // hashmap keyed by language id, values being root paths for the language server running for
+    // it.
+    pub roots: HashMap<String, String>,
 }

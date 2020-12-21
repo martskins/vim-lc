@@ -21,6 +21,7 @@ where
     pub server: Option<S>,
     pub language_id: String,
     pub bufnr: usize,
+    pub filename: String,
     pub message_id: jsonrpc_core::Id,
     pub state: Arc<RwLock<State>>,
     pub config: Config,
@@ -41,6 +42,7 @@ impl<C: RPCClient, S: RPCClient> Context<C, S> {
                 .unwrap_or_default(),
             Message::Output(_) => Value::String("".into()),
         };
+
         let bufnr = match message {
             Message::MethodCall(msg) => Into::<Value>::into(msg.params.clone())
                 .get("bufnr")
@@ -53,21 +55,42 @@ impl<C: RPCClient, S: RPCClient> Context<C, S> {
             Message::Output(_) => serde_json::to_value(0).unwrap(),
         };
 
+        let filename = match message {
+            Message::MethodCall(msg) => Into::<Value>::into(msg.params.clone())
+                .get("filename")
+                .cloned()
+                .unwrap_or_default(),
+            Message::Notification(msg) => Into::<Value>::into(msg.params.clone())
+                .get("filename")
+                .cloned()
+                .unwrap_or_default(),
+            Message::Output(_) => Value::String("".into()),
+        };
+
         let bufnr = <usize>::deserialize(bufnr).unwrap_or_default();
+        let filename = <String>::deserialize(filename).unwrap_or_default();
         let language_id = <Option<String>>::deserialize(language_id)
             .unwrap_or_default()
             .unwrap_or_default();
 
+        let root_path = lc
+            .state
+            .read()
+            .roots
+            .get(&language_id)
+            .cloned()
+            .unwrap_or_default();
         let server = lc.servers.read().get(&language_id).cloned();
         Self {
             vim: lc.vim.clone(),
             server,
             language_id,
             bufnr,
+            filename,
             message_id,
             state: Arc::clone(&lc.state),
             config: lc.config.clone(),
-            root_path: lc.root_path.clone(),
+            root_path,
         }
     }
 
@@ -116,7 +139,7 @@ where
         let clients = Arc::new(RwLock::new(HashMap::new()));
         let state = Arc::new(RwLock::new(State::default()));
         let vim = C::new(
-            rpc::ServerID::VIM,
+            rpc::ClientID::VIM,
             BufReader::new(tokio::io::stdin()),
             tokio::io::stdout(),
         );
@@ -169,7 +192,7 @@ where
             .expect("could not run command");
 
         let client = S::new(
-            rpc::ServerID::LanguageServer,
+            rpc::ClientID::LanguageServer,
             BufReader::new(cmd.stdout.unwrap()),
             cmd.stdin.unwrap(),
         );

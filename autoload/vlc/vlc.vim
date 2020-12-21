@@ -1,6 +1,15 @@
 let s:running = v:false
 
-function! vim#start() abort
+function! vlc#is_server_running(filetype)
+  return has_key(s:running, &filetype)
+endfunction
+
+function! vlc#has_server_configured(filetype)
+  let servers = get(g:, 'vlc#servers', {})
+  return has_key(servers, a:filetype)
+endfunction
+
+function! vlc#start() abort
   if s:running ==# v:true
     return 0
   endif
@@ -25,11 +34,11 @@ function! vim#start() abort
   let s:running = v:true
 endfunction
 
-function! vim#handle_error(job, lines, event) abort
+function! vlc#handle_error(job, lines, event) abort
     echoerr json_decode(a:lines)
 endfunction
 
-function! vim#execute(commands) abort
+function! vlc#execute(commands) abort
   let l:res = []
   for l:params in a:commands
     let l:action = l:params['action']
@@ -46,18 +55,18 @@ function! vim#execute(commands) abort
   return l:res
 endfunction
 
-function! vim#eval(params) abort
+function! vlc#eval(params) abort
   let l:res = eval(a:params['command'])
   return l:res
 endfunction
 
-function! vim#apply_edits(edits) abort
+function! vlc#apply_edits(edits) abort
   for l:edit in a:edits
-    call vim#apply_edit(l:edit)
+    call vlc#apply_edit(l:edit)
   endfor
 endfunction
 
-function! vim#apply_edit(changes) abort
+function! vlc#apply_edit(changes) abort
   try
     execute 'edit' a:changes['text_document']
   catch
@@ -136,7 +145,7 @@ function! vim#apply_edit(changes) abort
   execute ':w'
 endfunction
 
-function! vim#set_virtual_texts(params) abort
+function! vlc#set_virtual_texts(params) abort
   if type(a:params) !=# type([])
     echoerr 'virtual texts list is not a list'
   endif
@@ -153,7 +162,7 @@ function! vim#set_virtual_texts(params) abort
   endfor
 endfunction
 
-function! vim#set_quickfix(params) abort
+function! vlc#set_quickfix(params) abort
   if type(a:params) !=# type([])
     echoerr 'quickfix list is not a list'
   endif
@@ -166,7 +175,7 @@ function! vim#set_quickfix(params) abort
   call setqflist(l:params)
 endfunction
 
-function! vim#show_message(params) abort
+function! vlc#show_message(params) abort
   let l:level = 'INFO'
   if a:params['level'] == 1
     let l:level = 'ERROR'
@@ -181,7 +190,7 @@ function! vim#show_message(params) abort
   echo l:level . ': ' . a:params['message']
 endfunction
 
-function! vim#clear_signs(file) abort
+function! vlc#clear_signs(file) abort
   echom a:file
   if !exists('*sign_unplace')
     execute 'sign unplace * group=VLC buffer=' . a:file
@@ -190,7 +199,7 @@ function! vim#clear_signs(file) abort
   endif
 endfunction
 
-function! vim#place_sign(id, name, file, line) abort
+function! vlc#place_sign(id, name, file, line) abort
   if !exists('*sign_place')
     execute 'sign place id=' . a:id . ' name=' . a:name . ' file=' . a:file . ' line=' . a:line
   endif
@@ -198,16 +207,16 @@ function! vim#place_sign(id, name, file, line) abort
   call sign_place(a:id, 'VLC', a:name, a:file, { 'lnum': a:line })
 endfunction
 
-function! vim#set_signs(file, params) abort
-  call vim#clear_signs(a:file)
+function! vlc#set_signs(file, params) abort
+  call vlc#clear_signs(a:file)
   for l:sign in a:params
     echom l:sign['id']
-    call vim#place_sign(l:sign['id'], l:sign['sign'], a:file, l:sign['line'])
+    call vlc#place_sign(l:sign['id'], l:sign['sign'], a:file, l:sign['line'])
     " call sign_place(l:sign['id'], 'VLC', 'vlc_warn', l:sign['file'], { 'lnum': l:sign['line'] })
   endfor
 endfunction
 
-function! vim#show_preview(params)
+function! vlc#show_preview(params)
   let l:filetype = a:params['filetype']
   let l:lines = a:params['lines']
 
@@ -225,7 +234,7 @@ function! vim#show_preview(params)
   endif
 endfunction
 
-function! vim#show_float_win(params)
+function! vlc#show_float_win(params)
   let l:lines = []
   for line in a:params['lines']
     let l:lines = add(l:lines, ' ' . line . ' ')
@@ -269,16 +278,16 @@ function! s:close_floating_win(win_handle, pos) abort
   autocmd! vlc-hover
 endfunction
 
-function! vim#show_fzf(items, sink)
+function! vlc#show_fzf(items, sink)
   call fzf#run(fzf#wrap({ 'source': a:items, 'sink': function(a:sink)}))
 endfunction
 
-function! vim#show_locations(items, sink) abort
+function! vlc#show_locations(items, sink) abort
   call setloclist(0, a:items)
   :lopen
 endfunction
 
-function! vim#selection(items, sink) abort
+function! vlc#selection(items, sink) abort
   let l:options = map(copy(a:items), { key, val -> printf('%d) %s', key + 1, val ) })
   call inputsave()
   let l:selection = inputlist(l:options)
@@ -324,6 +333,6 @@ function! s:resolve_code_action(selection) abort
   call s:resolve_action('vlc/resolveCodeAction', a:selection)
 endfunction
 
-function! vim#trigger_completion()
+function! vlc#trigger_completion()
   call feedkeys("\<C-x>\<C-o>", "n")
 endfunction

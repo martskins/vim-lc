@@ -20,7 +20,7 @@ function! rpc#start(binpath, config) abort
   if has('nvim')
     let s:job = jobstart(cmd, {
         \ 'on_stdout': function('rpc#read'),
-        \ 'on_stderr': function('vim#handle_error'),
+        \ 'on_stderr': function('vlc#handle_error'),
       \ })
 
     if s:job == 0
@@ -32,10 +32,29 @@ function! rpc#start(binpath, config) abort
     else
       return 1
     endif
+  elseif has('job')
+    let s:job = job_start([a:binpath], {
+       \ 'out_cb': function('rpc#read'),
+       \ 'err_cb': function('vlc#handle_error'),
+       \ })
+    if job_status(s:job) !=# 'run'
+       call s:Echoerr('LanguageClient: job failed to start or died!')
+       return 0
+    else
+        return 1
+    endif
   else
     echoerr 'Not supported: only neovim is supported'
     return 0
   endif
+endfunction
+
+function! rpc#read_vim(job, data) abort
+    return rpc#read(a:job, [a:data], 'stdout')
+endfunction
+
+function! rpc#hande_error_vim(job, data) abort
+    return rpc#handle_error(a:job, [a:data], 'stderr')
 endfunction
 
 " TODO: needs to be separated in replySuccess and replyError
@@ -59,6 +78,10 @@ function! rpc#notify(method, params) abort
 endfunction
 
 function! s:do_send(method, params, ...) abort
+  if !vlc#has_server_configured(&filetype)
+    return
+  endif
+
   " do not send if binary hasn't been executed
   if s:job <= 0
     return 0
@@ -150,19 +173,19 @@ function! rpc#read(job, lines, event) abort
 
     let l:method = l:message['method']
     let l:params = l:message['params']
-    if l:method ==# 'vim#show_fzf'
-      return vim#show_fzf(l:params['items'], l:params['sink'])
+    if l:method ==# 'vlc#show_fzf'
+      return vlc#show_fzf(l:params['items'], l:params['sink'])
     " shows the vitual texts for the current buffer
     elseif l:method ==# 'call'
-      call vim#eval(l:params)
+      call vlc#eval(l:params)
     " evaluates a command, waits for the response and replies to the server
     elseif l:method ==# 'eval'
-      let l:res = vim#eval(l:params)
+      let l:res = vlc#eval(l:params)
       if has_key(l:message, 'id')
         call rpc#reply(l:message_id, l:res)
       endif
     elseif l:method ==# 'execute'
-      let l:res = vim#execute(l:params)
+      let l:res = vlc#execute(l:params)
       if has_key(l:message, 'id')
         call rpc#reply(l:message_id, l:res)
       endif

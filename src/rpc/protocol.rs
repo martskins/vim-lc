@@ -4,7 +4,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 
 pub trait RPCClient: Send + Sync + Clone + 'static {
-    fn new<I, O>(server_id: ServerID, reader: I, writer: O) -> Self
+    fn new<I, O>(server_id: ClientID, reader: I, writer: O) -> Self
     where
         I: tokio::io::AsyncBufReadExt + Unpin + Send + 'static,
         O: tokio::io::AsyncWrite + Unpin + Send + 'static;
@@ -20,7 +20,7 @@ pub trait RPCClient: Send + Sync + Clone + 'static {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum ServerID {
+pub enum ClientID {
     VIM,
     LanguageServer,
 }
