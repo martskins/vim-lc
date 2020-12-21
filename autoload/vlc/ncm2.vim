@@ -18,7 +18,7 @@ endfunction
 
 " ncm2 completion func
 function! vlc#ncm2#completion(ctx) abort
-  call lsp#completion(funcref('vlc#ncm2#do_complete', [a:ctx]))
+  call vlc#lsp#completion(funcref('vlc#ncm2#do_complete', [a:ctx]))
 endfunction
 
 " ncm2 completion callback to populate completion list

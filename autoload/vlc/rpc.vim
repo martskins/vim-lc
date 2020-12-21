@@ -9,7 +9,7 @@ function! s:get_id() abort
   return l:id
 endfunction
 
-function! rpc#start(binpath, config) abort
+function! vlc#rpc#start(binpath, config) abort
     let cmd = [a:binpath]
     if a:config !=# v:null
       let cmd = add(cmd, '--config')
@@ -19,7 +19,7 @@ function! rpc#start(binpath, config) abort
 
   if has('nvim')
     let s:job = jobstart(cmd, {
-        \ 'on_stdout': function('rpc#read'),
+        \ 'on_stdout': function('vlc#rpc#read'),
         \ 'on_stderr': function('vlc#handle_error'),
       \ })
 
@@ -34,7 +34,7 @@ function! rpc#start(binpath, config) abort
     endif
   elseif has('job')
     let s:job = job_start([a:binpath], {
-       \ 'out_cb': function('rpc#read'),
+       \ 'out_cb': function('vlc#rpc#read'),
        \ 'err_cb': function('vlc#handle_error'),
        \ })
     if job_status(s:job) !=# 'run'
@@ -49,31 +49,31 @@ function! rpc#start(binpath, config) abort
   endif
 endfunction
 
-function! rpc#read_vim(job, data) abort
-    return rpc#read(a:job, [a:data], 'stdout')
+function! vlc#rpc#read_vim(job, data) abort
+    return vlc#rpc#read(a:job, [a:data], 'stdout')
 endfunction
 
-function! rpc#hande_error_vim(job, data) abort
-    return rpc#handle_error(a:job, [a:data], 'stderr')
+function! vlc#rpc#hande_error_vim(job, data) abort
+    return vlc#rpc#handle_error(a:job, [a:data], 'stderr')
 endfunction
 
 " TODO: needs to be separated in replySuccess and replyError
-function! rpc#reply(id, params) abort
+function! vlc#rpc#reply(id, params) abort
   call s:do_send('success', a:params, a:id)
 endfunction
 
-function! rpc#call_with_callback(method, params, callback) abort
-  let l:id = rpc#call(a:method, a:params)
+function! vlc#rpc#call_with_callback(method, params, callback) abort
+  let l:id = vlc#rpc#call(a:method, a:params)
   let s:callbacks[l:id] = a:callback
 endfunction
 
-function! rpc#call(method, params) abort
+function! vlc#rpc#call(method, params) abort
   let l:id = s:get_id()
   call s:do_send(a:method, a:params, l:id)
   return l:id
 endfunction
 
-function! rpc#notify(method, params) abort
+function! vlc#rpc#notify(method, params) abort
   call s:do_send(a:method, a:params)
 endfunction
 
@@ -127,7 +127,7 @@ endfunction
 
 let s:content_length = 0
 let s:message = ''
-function! rpc#read(job, lines, event) abort
+function! vlc#rpc#read(job, lines, event) abort
   while len(a:lines) > 0
     let l:line = remove(a:lines, 0)
     if l:line ==# ''
@@ -182,17 +182,17 @@ function! rpc#read(job, lines, event) abort
     elseif l:method ==# 'eval'
       let l:res = vlc#eval(l:params)
       if has_key(l:message, 'id')
-        call rpc#reply(l:message_id, l:res)
+        call vlc#rpc#reply(l:message_id, l:res)
       endif
     elseif l:method ==# 'execute'
       let l:res = vlc#execute(l:params)
       if has_key(l:message, 'id')
-        call rpc#reply(l:message_id, l:res)
+        call vlc#rpc#reply(l:message_id, l:res)
       endif
     else
       let l:result = call(l:method, l:params)
       if l:message_id isnot v:null
-        call rpc#reply(l:message_id, l:result)
+        call vlc#rpc#reply(l:message_id, l:result)
       endif
     endif
   endwhile

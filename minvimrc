@@ -54,3 +54,15 @@ nmap <silent>E  <Plug>(vlc-diagnostic-detail)
 
 nmap <Left> :cprev<CR>
 nmap <Right> :cnext<CR>
+
+function! ProfileStart()
+  :profile start profile.log
+  :profile func *
+  :profile file *
+endfunction
+
+function! ProfileStop()
+  :profile stop
+endfunction
+
+command! ProfileStart :call ProfileStart()

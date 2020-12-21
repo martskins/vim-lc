@@ -1,31 +1,25 @@
-let s:initialized = v:false
-
-function! lsp#initialize() abort
-  call rpc#call('initialize', {})
-  let s:initialized = v:true
+function! vlc#lsp#initialize() abort
+  call vlc#rpc#call('initialize', {})
 endfunction
 
-function! lsp#did_open() abort
+function! vlc#lsp#did_open() abort
   if !vlc#is_server_running(&filetype)
     call vlc#start()
-  endif
-
-  if s:initialized ==# v:false
-    call lsp#initialize()
+    call vlc#lsp#initialize()
   endif
 
   call s:send_lifecycle_event('textDocument/didOpen')
 endfunction
 
-function! lsp#did_save() abort
+function! vlc#lsp#did_save() abort
   call s:send_lifecycle_event('textDocument/didSave')
 endfunction
 
-function! lsp#did_change() abort
+function! vlc#lsp#did_change() abort
   call s:send_lifecycle_event('textDocument/didChange')
 endfunction
 
-function! lsp#did_close() abort
+function! vlc#lsp#did_close() abort
   call s:send_lifecycle_event('textDocument/didClose')
 endfunction
 
@@ -34,105 +28,105 @@ function! s:send_lifecycle_event(event) abort
     return 0
   endif
 
-  call rpc#notify(a:event, s:text_document())
+  call vlc#rpc#notify(a:event, s:text_document())
   return 1
 endfunction
 
-function! lsp#exit() abort
-  call rpc#notify('exit', v:null)
+function! vlc#lsp#exit() abort
+  call vlc#rpc#notify('exit', v:null)
 endfunction
 
-function! lsp#shutdown() abort
-  call rpc#call('shutdown', v:null)
+function! vlc#lsp#shutdown() abort
+  call vlc#rpc#call('shutdown', v:null)
 endfunction
 
-function! lsp#code_lens_action() abort
+function! vlc#lsp#code_lens_action() abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
   let l:params = s:position()
-  return rpc#call('vlc/codeLensAction', l:params)
+  return vlc#rpc#call('vlc/codeLensAction', l:params)
 endfunction
 
-function! lsp#code_action() abort
+function! vlc#lsp#code_action() abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
   let l:params = extend(s:selection_range(), { 'text_document': expand('%:p') })
-  return rpc#call('textDocument/codeAction', l:params)
+  return vlc#rpc#call('textDocument/codeAction', l:params)
 endfunction
 
-function! lsp#formatting() abort
+function! vlc#lsp#formatting() abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
   let l:params = {}
-  return rpc#call('textDocument/formatting', l:params)
+  return vlc#rpc#call('textDocument/formatting', l:params)
 endfunction
 
-function! lsp#rename(new_name) abort
+function! vlc#lsp#rename(new_name) abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
   let l:params = extend(s:position(), { 'language_id': &filetype, 'new_name': a:new_name })
-  return rpc#call('textDocument/rename', l:params)
+  return vlc#rpc#call('textDocument/rename', l:params)
 endfunction
 
-function! lsp#hover() abort
+function! vlc#lsp#hover() abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
-  return rpc#call('textDocument/hover', s:position())
+  return vlc#rpc#call('textDocument/hover', s:position())
 endfunction
 
-function! lsp#implementation() abort
+function! vlc#lsp#implementation() abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
-  call rpc#call('textDocument/implementation', s:position())
+  call vlc#rpc#call('textDocument/implementation', s:position())
 endfunction
 
-function! lsp#references() abort
+function! vlc#lsp#references() abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
-  call rpc#call('textDocument/references', s:position())
+  call vlc#rpc#call('textDocument/references', s:position())
 endfunction
 
-function! lsp#definition() abort
+function! vlc#lsp#definition() abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
-  call rpc#call('textDocument/definition', s:position())
+  call vlc#rpc#call('textDocument/definition', s:position())
 endfunction
 
-function! lsp#completion(callback) abort
+function! vlc#lsp#completion(callback) abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
-  return rpc#call_with_callback('textDocument/completion', s:position(), a:callback)
+  return vlc#rpc#call_with_callback('textDocument/completion', s:position(), a:callback)
 endfunction
 
-function! lsp#diagnostic_detail() abort
+function! vlc#lsp#diagnostic_detail() abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
 
   let l:params = s:position()
-  return rpc#call('vlc/diagnosticDetail', l:params)
+  return vlc#rpc#call('vlc/diagnosticDetail', l:params)
 endfunction
 
 " TODO: not sure what to do with the result of completionItem/resolve
-function! lsp#completion_item_resolve(callback) abort
+function! vlc#lsp#completion_item_resolve(callback) abort
   if &buftype !=# '' || &filetype ==# '' || expand('%') ==# ''
     return 0
   endif
@@ -146,7 +140,7 @@ function! lsp#completion_item_resolve(callback) abort
         \ 'position': s:position(),
         \ 'completion_item': v:completed_item,
         \ }
-  return rpc#call_with_callback('completionItem/resolve', l:params, a:callback)
+  return vlc#rpc#call_with_callback('completionItem/resolve', l:params, a:callback)
 endfunction
 
 "{{{ PRIVATE FUNCTIONS

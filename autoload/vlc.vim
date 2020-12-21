@@ -1,67 +1,67 @@
 let s:running = {}
 let s:started = v:false
 
-function! vlc#is_server_running(filetype)
-  return has_key(s:running, a:filetype)
-endfunction
-
 function! vlc#formatting() abort
-  call lsp#formatting()
+  call vlc#lsp#formatting()
 endfunction
 
 function! vlc#rename() abort
   let l:new_name = input('Enter new name: ')
-  call lsp#rename(l:new_name)
+  call vlc#lsp#rename(l:new_name)
 endfunction
 
 function! vlc#code_lens_action() abort
-  call lsp#code_lens_action()
+  call vlc#lsp#code_lens_action()
 endfunction
 
 function! vlc#code_action() abort
-  call lsp#code_action()
+  call vlc#lsp#code_action()
 endfunction
 
 function! vlc#implementation() abort
-  call lsp#implementation()
+  call vlc#lsp#implementation()
 endfunction
 
 function! vlc#references() abort
-  call lsp#references()
+  call vlc#lsp#references()
 endfunction
 
 function! vlc#hover() abort
-  call lsp#hover()
+  call vlc#lsp#hover()
 endfunction
 
 function! vlc#definition() abort
-  call lsp#definition()
+  call vlc#lsp#definition()
 endfunction
 
 function! vlc#exit() abort
-  call lsp#exit()
+  call vlc#lsp#exit()
 endfunction
 
 function! vlc#shutdown() abort
-  call lsp#shutdown()
+  call vlc#lsp#shutdown()
 endfunction
 
 function! vlc#resolve_completion() abort
   echom expand('<cword>')
-  " call lsp#completionItemResolve(funcref('s:doEcho'))
+  " call vlc#lsp#completionItemResolve(funcref('s:doEcho'))
 endfunction
 
 function! vlc#diagnostic_detail() abort
-  call lsp#diagnostic_detail()
+  call vlc#lsp#diagnostic_detail()
 endfunction
 
 function! vlc#start() abort
-  call rpc#call('start', {'language_id': &filetype})
+  if &filetype ==# ''
+    return
+  endif
+
+  call vlc#rpc#call('start', {'language_id': &filetype})
   let s:running[&filetype] = v:true
 endfunction
 
 function! vlc#stop() abort
-  call rpc#call('shutdown', {'language_id': &filetype})
+  call vlc#rpc#call('shutdown', {'language_id': &filetype})
   let s:running[&filetype] = v:false
 endfunction
 
@@ -71,7 +71,7 @@ function! vlc#completion(findstart, base) abort
     return col('.')
   endif
 
-  call lsp#completion(funcref('vlc#do_complete'))
+  call vlc#lsp#completion(funcref('vlc#do_complete'))
 endfunction
 
 " ncm2 completion callback to populate completion list
@@ -80,7 +80,7 @@ function! vlc#do_complete(res) abort
 endfunction
 
 function! vlc#is_server_running(filetype)
-  return has_key(s:running, &filetype)
+  return get(s:running, a:filetype, v:false)
 endfunction
 
 function! vlc#has_server_configured(filetype)
@@ -93,7 +93,8 @@ function! vlc#run() abort
     return 0
   endif
 
-  let l:binpath = expand('~/dev/vim-lc/target/debug/vlc')
+  " let l:binpath = expand('~/dev/vim-lc/target/debug/vlc')
+  let l:binpath = expand('~/dev/vim-lc/target/release/vlc')
   " let l:binpath = expand('~/.vim/plugged/vim-lc/target/release/vlc')
   if exists('g:vlc#binpath')
     let l:binpath = expand(g:vlc#binpath)
@@ -109,7 +110,7 @@ function! vlc#run() abort
     return 0
   endif
 
-  call rpc#start(l:binpath, l:config)
+  call vlc#rpc#start(l:binpath, l:config)
   let s:started = v:true
 endfunction
 
@@ -270,7 +271,6 @@ function! vlc#show_message(params) abort
 endfunction
 
 function! vlc#clear_signs(file) abort
-  echom a:file
   if !exists('*sign_unplace')
     execute 'sign unplace * group=VLC buffer=' . a:file
   else
@@ -289,9 +289,7 @@ endfunction
 function! vlc#set_signs(file, params) abort
   call vlc#clear_signs(a:file)
   for l:sign in a:params
-    echom l:sign['id']
     call vlc#place_sign(l:sign['id'], l:sign['sign'], a:file, l:sign['line'])
-    " call sign_place(l:sign['id'], 'VLC', 'vlc_warn', l:sign['file'], { 'lnum': l:sign['line'] })
   endfor
 endfunction
 
@@ -400,7 +398,7 @@ function! s:resolve_action(method, selection) abort
         \'line': l:line,
         \'column': l:col
         \}
-  call rpc#call(a:method, l:params)
+  call vlc#rpc#call(a:method, l:params)
 endfunction
 
 function! s:resolve_code_lens_action(selection) abort

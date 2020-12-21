@@ -18,19 +18,15 @@ where
 {
     // handles messages sent from vim to the language client
     pub async fn handle_vim_message(&self, message: rpc::Message) -> Result<()> {
-        // handle start separetely as not to try to create a context
-        match message {
-            rpc::Message::MethodCall(msg) if msg.method.as_str() == "start" => {
-                let params: BufInfo = serde_json::from_value(msg.params.into())?;
-                self.start_server(&params.language_id).await?;
-                return Ok(());
-            }
-            _ => {}
-        }
-
         let ctx = Context::new(&message, self);
         match message {
             rpc::Message::MethodCall(msg) => match msg.method.as_str() {
+                "start" => {
+                    log::error!("STARTING");
+                    let params: BufInfo = serde_json::from_value(msg.params.into())?;
+                    self.start_server(&params.language_id).await?;
+                    return Ok(());
+                }
                 "initialize" => {
                     crate::lsp::initialize(&ctx).await?;
                     crate::lsp::initialized(&ctx)?;
