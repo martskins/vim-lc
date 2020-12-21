@@ -9,6 +9,7 @@ use anyhow::Result;
 use jsonrpc_core::Params;
 use lsp_types::{CodeAction, CodeActionOrCommand};
 use serde::de::DeserializeOwned;
+use std::io::Read;
 pub use types::*;
 
 impl<C, S> LanguageClient<C, S>
@@ -17,18 +18,18 @@ where
     S: RPCClient,
 {
     // handles messages sent from vim to the language client
-    pub async fn handle_vim_message(&self, message: rpc::Message) -> Result<()> {
+    pub fn handle_vim_message(&self, message: rpc::Message) -> Result<()> {
         let ctx = Context::new(&message, self);
         match message {
             rpc::Message::MethodCall(msg) => match msg.method.as_str() {
                 "start" => {
                     log::error!("STARTING");
                     let params: BufInfo = serde_json::from_value(msg.params.into())?;
-                    self.start_server(&params.language_id).await?;
+                    self.start_server(&params.language_id)?;
                     return Ok(());
                 }
                 "initialize" => {
-                    crate::lsp::initialize(&ctx).await?;
+                    crate::lsp::initialize(&ctx)?;
                     crate::lsp::initialized(&ctx)?;
                 }
                 "shutdown" => {
@@ -40,43 +41,43 @@ where
                 "completionItem/resolve" => {
                     let params: CompletionItemWithContext =
                         serde_json::from_value(msg.params.into())?;
-                    resolve_completion(&ctx, params).await?;
+                    resolve_completion(&ctx, params)?;
                 }
                 "textDocument/completion" => {
-                    completion(&ctx, msg.params).await?;
+                    completion(&ctx, msg.params)?;
                 }
                 "textDocument/codeLens" => {
-                    code_lens(&ctx, msg.params).await?;
+                    code_lens(&ctx, msg.params)?;
                 }
                 "textDocument/codeAction" => {
-                    code_action(&ctx, msg.params).await?;
+                    code_action(&ctx, msg.params)?;
                 }
                 "textDocument/definition" => {
-                    definition(&ctx, msg.params).await?;
+                    definition(&ctx, msg.params)?;
                 }
                 "textDocument/hover" => {
-                    hover(&ctx, msg.params).await?;
+                    hover(&ctx, msg.params)?;
                 }
                 "textDocument/references" => {
-                    references(&ctx, msg.params).await?;
+                    references(&ctx, msg.params)?;
                 }
                 "textDocument/rename" => {
-                    rename(&ctx, msg.params).await?;
+                    rename(&ctx, msg.params)?;
                 }
                 "textDocument/implementation" => {
-                    implementation(&ctx, msg.params).await?;
+                    implementation(&ctx, msg.params)?;
                 }
                 "textDocument/formatting" => {
-                    formatting(&ctx, msg.params).await?;
+                    formatting(&ctx, msg.params)?;
                 }
                 "vlc/codeLensAction" => {
-                    code_lens_action(&ctx, msg.params).await?;
+                    code_lens_action(&ctx, msg.params)?;
                 }
                 "vlc/resolveCodeLensAction" => {
-                    resolve_code_lens_action(&ctx, msg.params).await?;
+                    resolve_code_lens_action(&ctx, msg.params)?;
                 }
                 "vlc/resolveCodeAction" => {
-                    resolve_code_action(&ctx, msg.params).await?;
+                    resolve_code_action(&ctx, msg.params)?;
                 }
                 "vlc/diagnosticDetail" => {
                     diagnostic_detail(&ctx, msg.params)?;
@@ -85,16 +86,16 @@ where
             },
             rpc::Message::Notification(msg) => match msg.method.as_str() {
                 "textDocument/didSave" => {
-                    did_save(&ctx, msg.params).await?;
+                    did_save(&ctx, msg.params)?;
                 }
                 "textDocument/didOpen" => {
-                    did_open(&ctx, msg.params).await?;
+                    did_open(&ctx, msg.params)?;
                 }
                 "textDocument/didClose" => {
-                    did_close(&ctx, msg.params).await?;
+                    did_close(&ctx, msg.params)?;
                 }
                 "textDocument/didChange" => {
-                    did_change(&ctx, msg.params).await?;
+                    did_change(&ctx, msg.params)?;
                 }
                 _ => log::debug!("unhandled notification {}", msg.method),
             },
@@ -340,7 +341,7 @@ pub fn selection<C: RPCClient, S: RPCClient, I: ListItem>(
     Ok(())
 }
 
-pub async fn show_locations<C: RPCClient, S: RPCClient>(
+pub fn show_locations<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: Vec<Location>,
 ) -> Result<()> {
@@ -354,11 +355,9 @@ pub async fn show_locations<C: RPCClient, S: RPCClient>(
 
     let locations: Vec<_> = input
         .into_iter()
-        .map(|l| async move {
+        .map(|l| {
             let filename = l.filename.replace(ctx.root_path.as_str(), "");
-            let text = crate::vim::get_line(ctx, &filename, l.position.line)
-                .await
-                .unwrap_or_default();
+            let text = crate::vim::get_line(ctx, &filename, l.position.line).unwrap_or_default();
             LocationItem {
                 filename,
                 lnum: l.position.line,
@@ -368,7 +367,7 @@ pub async fn show_locations<C: RPCClient, S: RPCClient>(
         })
         .collect();
 
-    let locations = futures::future::join_all(locations).await;
+    // let locations = futures::future::join_all(locations);
     setloclist(ctx, locations)?;
     Ok(())
 }
@@ -441,7 +440,7 @@ pub fn show_message<C: RPCClient, S: RPCClient>(
     Ok(())
 }
 
-pub async fn get_line<C: RPCClient, S: RPCClient>(
+pub fn get_line<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     filename: &str,
     line_number: u32,
@@ -454,10 +453,9 @@ pub async fn get_line<C: RPCClient, S: RPCClient>(
     match text_document {
         Some((_, lines)) => Ok(lines[idx].clone()),
         None => {
-            use tokio::io::AsyncReadExt;
-            let mut file = tokio::fs::File::open(filename).await?;
+            let mut file = std::fs::File::open(filename)?;
             let mut text = String::new();
-            file.read_to_string(&mut text).await?;
+            file.read_to_string(&mut text)?;
             let lines: Vec<&str> = text.split('\n').collect();
             let line = lines[idx].to_owned();
             Ok(line)
@@ -465,7 +463,7 @@ pub async fn get_line<C: RPCClient, S: RPCClient>(
     }
 }
 
-pub async fn resolve_code_lens_action<C: RPCClient, S: RPCClient>(
+pub fn resolve_code_lens_action<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     params: Params,
 ) -> Result<()> {
@@ -488,14 +486,14 @@ pub async fn resolve_code_lens_action<C: RPCClient, S: RPCClient>(
             }
 
             log::error!("{:?}", code_lens);
-            crate::lsp::extensions::run_command(ctx, response.command.as_ref().unwrap()).await?;
+            crate::lsp::extensions::run_command(ctx, response.command.as_ref().unwrap())?;
         }
     }
 
     Ok(())
 }
 
-pub async fn resolve_code_action<C: RPCClient, S: RPCClient>(
+pub fn resolve_code_action<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     params: Params,
 ) -> Result<()> {
@@ -515,10 +513,10 @@ pub async fn resolve_code_action<C: RPCClient, S: RPCClient>(
                     return Ok(());
                 }
 
-                crate::lsp::extensions::run_command(ctx, &action.command.as_ref().unwrap()).await?;
+                crate::lsp::extensions::run_command(ctx, &action.command.as_ref().unwrap())?;
             }
             CodeActionOrCommand::Command(command) => {
-                crate::lsp::extensions::run_command(ctx, command).await?;
+                crate::lsp::extensions::run_command(ctx, command)?;
             }
         },
     }
@@ -528,9 +526,9 @@ pub async fn resolve_code_action<C: RPCClient, S: RPCClient>(
     Ok(())
 }
 
-pub async fn rename<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Params) -> Result<()> {
+pub fn rename<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Params) -> Result<()> {
     let params: RenameParams = serde_json::from_value(params.into()).unwrap();
-    let response = crate::lsp::text_document::rename(ctx, params).await?;
+    let response = crate::lsp::text_document::rename(ctx, params)?;
     if response.is_none() {
         return Ok(());
     }
@@ -539,50 +537,38 @@ pub async fn rename<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Par
     Ok(())
 }
 
-pub async fn did_open<C: RPCClient, S: RPCClient>(
-    ctx: &Context<C, S>,
-    params: Params,
-) -> Result<()> {
+pub fn did_open<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Params) -> Result<()> {
     let req: TextDocumentContent = serde_json::from_value(params.clone().into())?;
-    crate::lsp::text_document::did_open(ctx, req).await?;
-    code_lens(ctx, params).await?;
+    crate::lsp::text_document::did_open(ctx, req)?;
+    code_lens(ctx, params)?;
     Ok(())
 }
 
-pub async fn did_save<C: RPCClient, S: RPCClient>(
-    ctx: &Context<C, S>,
-    params: Params,
-) -> Result<()> {
+pub fn did_save<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Params) -> Result<()> {
     let req: TextDocumentContent = serde_json::from_value(params.clone().into())?;
-    crate::lsp::text_document::did_save(ctx, req).await?;
-    code_lens(ctx, params).await?;
+    crate::lsp::text_document::did_save(ctx, req)?;
+    code_lens(ctx, params)?;
     Ok(())
 }
 
-pub async fn did_close<C: RPCClient, S: RPCClient>(
-    ctx: &Context<C, S>,
-    params: Params,
-) -> Result<()> {
+pub fn did_close<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Params) -> Result<()> {
     let params: TextDocumentContent = serde_json::from_value(params.into())?;
-    crate::lsp::text_document::did_close(ctx, params).await?;
+    crate::lsp::text_document::did_close(ctx, params)?;
     Ok(())
 }
 
-pub async fn did_change<C: RPCClient, S: RPCClient>(
-    ctx: &Context<C, S>,
-    params: Params,
-) -> Result<()> {
+pub fn did_change<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Params) -> Result<()> {
     let params: TextDocumentContent = serde_json::from_value(params.into())?;
-    crate::lsp::text_document::did_change(ctx, params.clone()).await?;
+    crate::lsp::text_document::did_change(ctx, params.clone())?;
     Ok(())
 }
 
-pub async fn implementation<C: RPCClient, S: RPCClient>(
+pub fn implementation<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     params: Params,
 ) -> Result<()> {
     let params: CursorPosition = serde_json::from_value(params.into())?;
-    let response = crate::lsp::text_document::implementation(ctx, params).await?;
+    let response = crate::lsp::text_document::implementation(ctx, params)?;
     if response.is_none() {
         return Ok(());
     }
@@ -593,20 +579,20 @@ pub async fn implementation<C: RPCClient, S: RPCClient>(
         }
         lsp_types::GotoDefinitionResponse::Array(ll) => {
             let locations = ll.into_iter().map(|l| l.into()).collect();
-            crate::vim::show_locations(ctx, locations).await?
+            crate::vim::show_locations(ctx, locations)?
         }
         lsp_types::GotoDefinitionResponse::Link(ll) => {
             let locations = ll.into_iter().map(|l| l.into()).collect();
-            crate::vim::show_locations(ctx, locations).await?
+            crate::vim::show_locations(ctx, locations)?
         }
     }
 
     Ok(())
 }
 
-pub async fn hover<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Params) -> Result<()> {
+pub fn hover<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Params) -> Result<()> {
     let params: CursorPosition = serde_json::from_value(params.into())?;
-    let response = crate::lsp::text_document::hover(ctx, params).await?;
+    let response = crate::lsp::text_document::hover(ctx, params)?;
     if response.is_none() {
         return Ok(());
     }
@@ -615,12 +601,9 @@ pub async fn hover<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Para
     Ok(())
 }
 
-pub async fn references<C: RPCClient, S: RPCClient>(
-    ctx: &Context<C, S>,
-    params: Params,
-) -> Result<()> {
+pub fn references<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Params) -> Result<()> {
     let params: CursorPosition = serde_json::from_value(params.into())?;
-    let response = crate::lsp::text_document::references(ctx, params).await?;
+    let response = crate::lsp::text_document::references(ctx, params)?;
     if response.is_none() {
         return Ok(());
     }
@@ -632,35 +615,29 @@ pub async fn references<C: RPCClient, S: RPCClient>(
         }
         _ => {
             let locations = response.into_iter().map(|l| l.into()).collect();
-            crate::vim::show_locations(ctx, locations).await?;
+            crate::vim::show_locations(ctx, locations)?;
         }
     }
 
     Ok(())
 }
 
-pub async fn formatting<C: RPCClient, S: RPCClient>(
-    ctx: &Context<C, S>,
-    params: Params,
-) -> Result<()> {
+pub fn formatting<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Params) -> Result<()> {
     let params: BufInfo = serde_json::from_value(params.into())?;
-    let edits = crate::lsp::text_document::formatting(ctx, &params.filename).await?;
+    let edits = crate::lsp::text_document::formatting(ctx, &params.filename)?;
     crate::vim::apply_text_edits(ctx, &params.filename, &edits)?;
 
     Ok(())
 }
 
-pub async fn code_action<C: RPCClient, S: RPCClient>(
-    ctx: &Context<C, S>,
-    params: Params,
-) -> Result<()> {
+pub fn code_action<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Params) -> Result<()> {
     if !ctx.features()?.code_actions {
         return Ok(());
     }
 
     let params: SelectionRange = serde_json::from_value(params.into())?;
     let response: Vec<lsp_types::CodeActionOrCommand> =
-        crate::lsp::text_document::code_action(ctx, params).await?;
+        crate::lsp::text_document::code_action(ctx, params)?;
     if response.is_empty() {
         return Ok(());
     }
@@ -683,7 +660,7 @@ pub async fn code_action<C: RPCClient, S: RPCClient>(
     Ok(())
 }
 
-pub async fn code_lens_action<C: RPCClient, S: RPCClient>(
+pub fn code_lens_action<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     params: Params,
 ) -> Result<()> {
@@ -725,13 +702,9 @@ pub fn code_lens_for_position<C: RPCClient, S: RPCClient>(
     Ok(code_lens)
 }
 
-pub async fn code_lens<C: RPCClient, S: RPCClient>(
-    ctx: &Context<C, S>,
-    params: Params,
-) -> Result<()> {
+pub fn code_lens<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Params) -> Result<()> {
     let params: TextDocumentIdentifier = serde_json::from_value(params.into())?;
-    let response: Vec<lsp_types::CodeLens> =
-        crate::lsp::text_document::code_lens(ctx, params).await?;
+    let response: Vec<lsp_types::CodeLens> = crate::lsp::text_document::code_lens(ctx, params)?;
     if response.is_empty() {
         return Ok(());
     }
@@ -769,16 +742,13 @@ pub async fn code_lens<C: RPCClient, S: RPCClient>(
     Ok(())
 }
 
-pub async fn completion<C: RPCClient, S: RPCClient>(
-    ctx: &Context<C, S>,
-    params: Params,
-) -> Result<()> {
+pub fn completion<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Params) -> Result<()> {
     if !ctx.features()?.completion {
         return Ok(());
     }
 
     let params: CursorPosition = serde_json::from_value(params.into())?;
-    let response = crate::lsp::text_document::completion(ctx, params).await?;
+    let response = crate::lsp::text_document::completion(ctx, params)?;
     if response.is_none() {
         return Ok(());
     }
@@ -797,7 +767,7 @@ pub async fn completion<C: RPCClient, S: RPCClient>(
     Ok(())
 }
 
-pub async fn resolve_completion<C: RPCClient, S: RPCClient>(
+pub fn resolve_completion<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     params: CompletionItemWithContext,
 ) -> Result<()> {
@@ -826,19 +796,16 @@ pub async fn resolve_completion<C: RPCClient, S: RPCClient>(
     }
 
     let ci: lsp_types::CompletionItem =
-        crate::lsp::text_document::completion_item_resolve(ctx, params.completion_item).await?;
+        crate::lsp::text_document::completion_item_resolve(ctx, params.completion_item)?;
     let ci: CompletionItem = ci.into();
     ctx.vim
         .reply_success(&ctx.message_id, serde_json::to_value(&ci)?)?;
     Ok(())
 }
 
-pub async fn definition<C: RPCClient, S: RPCClient>(
-    ctx: &Context<C, S>,
-    params: Params,
-) -> Result<()> {
+pub fn definition<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Params) -> Result<()> {
     let params: CursorPosition = serde_json::from_value(params.into())?;
-    let response = crate::lsp::text_document::definition(ctx, params).await?;
+    let response = crate::lsp::text_document::definition(ctx, params)?;
     if response.is_none() {
         return Ok(());
     }
@@ -849,11 +816,11 @@ pub async fn definition<C: RPCClient, S: RPCClient>(
         }
         lsp_types::GotoDefinitionResponse::Array(ll) => {
             let locations = ll.into_iter().map(|l| l.into()).collect();
-            crate::vim::show_locations(ctx, locations).await?
+            crate::vim::show_locations(ctx, locations)?
         }
         lsp_types::GotoDefinitionResponse::Link(ll) => {
             let locations = ll.into_iter().map(|l| l.into()).collect();
-            crate::vim::show_locations(ctx, locations).await?
+            crate::vim::show_locations(ctx, locations)?
         }
     }
 

@@ -15,7 +15,7 @@ use lsp_types::{
 };
 use std::collections::HashMap;
 
-pub async fn formatting<C: RPCClient, S: RPCClient>(
+pub fn formatting<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     text_document: &str,
 ) -> Result<Vec<TextEdit>> {
@@ -50,7 +50,7 @@ pub async fn formatting<C: RPCClient, S: RPCClient>(
     Ok(res)
 }
 
-pub async fn code_action<C: RPCClient, S: RPCClient>(
+pub fn code_action<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::SelectionRange,
 ) -> Result<Vec<CodeActionOrCommand>> {
@@ -86,7 +86,7 @@ pub async fn code_action<C: RPCClient, S: RPCClient>(
     Ok(actions)
 }
 
-pub async fn code_lens<C: RPCClient, S: RPCClient>(
+pub fn code_lens<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::TextDocumentIdentifier,
 ) -> Result<Vec<CodeLens>> {
@@ -115,7 +115,7 @@ pub async fn code_lens<C: RPCClient, S: RPCClient>(
     Ok(response)
 }
 
-pub async fn implementation<C: RPCClient, S: RPCClient>(
+pub fn implementation<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::CursorPosition,
 ) -> Result<Option<request::GotoImplementationResponse>> {
@@ -128,7 +128,7 @@ pub async fn implementation<C: RPCClient, S: RPCClient>(
     Ok(message)
 }
 
-pub async fn references<C: RPCClient, S: RPCClient>(
+pub fn references<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::CursorPosition,
 ) -> Result<Option<Vec<lsp_types::Location>>> {
@@ -141,7 +141,7 @@ pub async fn references<C: RPCClient, S: RPCClient>(
     Ok(message)
 }
 
-pub async fn definition<C: RPCClient, S: RPCClient>(
+pub fn definition<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     params: vim::CursorPosition,
 ) -> Result<Option<GotoDefinitionResponse>> {
@@ -154,7 +154,7 @@ pub async fn definition<C: RPCClient, S: RPCClient>(
     Ok(message)
 }
 
-pub async fn did_save<C: RPCClient, S: RPCClient>(
+pub fn did_save<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::TextDocumentContent,
 ) -> Result<()> {
@@ -171,7 +171,7 @@ pub async fn did_save<C: RPCClient, S: RPCClient>(
         .notify(notification::DidSaveTextDocument::METHOD, input)
 }
 
-pub async fn did_close<C: RPCClient, S: RPCClient>(
+pub fn did_close<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::TextDocumentContent,
 ) -> Result<()> {
@@ -193,7 +193,7 @@ pub async fn did_close<C: RPCClient, S: RPCClient>(
         .notify(notification::DidCloseTextDocument::METHOD, input)
 }
 
-pub async fn did_change<C: RPCClient, S: RPCClient>(
+pub fn did_change<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::TextDocumentContent,
 ) -> Result<()> {
@@ -229,7 +229,7 @@ pub async fn did_change<C: RPCClient, S: RPCClient>(
         .notify(notification::DidChangeTextDocument::METHOD, input)
 }
 
-pub async fn rename<C: RPCClient, S: RPCClient>(
+pub fn rename<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::RenameParams,
 ) -> Result<Option<WorkspaceEdit>> {
@@ -247,7 +247,7 @@ pub async fn rename<C: RPCClient, S: RPCClient>(
     Ok(response)
 }
 
-pub async fn did_open<C: RPCClient, S: RPCClient>(
+pub fn did_open<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::TextDocumentContent,
 ) -> Result<()> {
@@ -279,7 +279,7 @@ pub async fn did_open<C: RPCClient, S: RPCClient>(
         .notify(notification::DidOpenTextDocument::METHOD, input)
 }
 
-pub async fn hover<C: RPCClient, S: RPCClient>(
+pub fn hover<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::CursorPosition,
 ) -> Result<Option<Hover>> {
@@ -292,7 +292,7 @@ pub async fn hover<C: RPCClient, S: RPCClient>(
     Ok(response)
 }
 
-pub async fn completion<C: RPCClient, S: RPCClient>(
+pub fn completion<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::CursorPosition,
 ) -> Result<Option<CompletionResponse>> {
@@ -312,7 +312,7 @@ pub async fn completion<C: RPCClient, S: RPCClient>(
     Ok(message)
 }
 
-pub async fn completion_item_resolve<C: RPCClient, S: RPCClient>(
+pub fn completion_item_resolve<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::CompletionItem,
 ) -> Result<CompletionItem> {

@@ -76,7 +76,7 @@ where
     Ok(())
 }
 
-pub(super) async fn show_references<C, S>(
+pub(super) fn show_references<C, S>(
     ctx: &Context<C, S>,
     arguments: &Option<Vec<Value>>,
 ) -> Result<()>
@@ -93,7 +93,7 @@ where
     let locations: Vec<Location> = serde_json::from_value(locations)?;
     let locations = locations.into_iter().map(|l| l.into()).collect();
 
-    crate::vim::show_locations(ctx, locations).await?;
+    crate::vim::show_locations(ctx, locations)?;
     Ok(())
 }
 

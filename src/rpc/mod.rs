@@ -5,10 +5,11 @@ use crossbeam::channel::{Receiver, Sender};
 pub use protocol::*;
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
+use std::io::{BufRead, Read, Write};
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+// use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 #[derive(Debug)]
 pub struct Client {
@@ -31,13 +32,9 @@ impl Clone for Client {
     }
 }
 
-async fn loop_write<O>(
-    server_id: ClientID,
-    mut writer: O,
-    receiver: Receiver<Message>,
-) -> Result<()>
+fn loop_write<O>(server_id: ClientID, mut writer: O, receiver: Receiver<Message>) -> Result<()>
 where
-    O: AsyncWrite + Unpin + Send + 'static,
+    O: Write + Unpin + Send + 'static,
 {
     for message in receiver.iter() {
         let message = serde_json::to_string(&message)?;
@@ -52,35 +49,35 @@ where
         let message = message.as_bytes();
         let headers = format!("Content-Length: {}\r\n\r\n", message.len());
 
-        writer.write_all(headers.as_bytes()).await?;
-        writer.write_all(message).await?;
-        writer.flush().await?;
+        writer.write_all(headers.as_bytes())?;
+        writer.write_all(message)?;
+        writer.flush()?;
     }
 
     Ok(())
 }
 
-async fn loop_read<I>(
+fn loop_read<I>(
     server_id: ClientID,
     mut reader: I,
     pending_receiver: Receiver<(jsonrpc_core::Id, Sender<jsonrpc_core::Output>)>,
     sender: Sender<Message>,
 ) -> Result<()>
 where
-    I: AsyncBufReadExt + Unpin + Send + 'static,
+    I: BufRead + Unpin + Send + 'static,
 {
     let mut pending_outputs = HashMap::new();
     loop {
         let mut content_length = String::new();
-        reader.read_line(&mut content_length).await?;
+        reader.read_line(&mut content_length)?;
         let content_length: String = content_length.trim().split(':').skip(1).take(1).collect();
         let content_length = content_length.trim().parse()?;
 
         let mut content_type = String::new();
-        reader.read_line(&mut content_type).await?;
+        reader.read_line(&mut content_type)?;
 
         let mut message = vec![0 as u8; content_length];
-        reader.read_exact(&mut message).await?;
+        reader.read_exact(&mut message)?;
         let message = String::from_utf8(message)?;
         log::debug!(
             "{:?} [thread: {:?}] ==> {}",
@@ -111,15 +108,15 @@ where
 impl RPCClient for Client {
     fn new<I, O>(server_id: ClientID, reader: I, writer: O) -> Self
     where
-        I: AsyncBufReadExt + Unpin + Send + 'static,
-        O: AsyncWrite + Unpin + Send + 'static,
+        I: BufRead + Unpin + Send + 'static,
+        O: Write + Unpin + Send + 'static,
     {
         let (pending_tx, pending_rx) = crossbeam::channel::bounded(1);
         let (reader_tx, reader_rx) = crossbeam::channel::unbounded();
         {
             let server_id = server_id.clone();
-            tokio::spawn(async move {
-                if let Err(e) = loop_read(server_id, reader, pending_rx, reader_tx).await {
+            std::thread::spawn(move || {
+                if let Err(e) = loop_read(server_id, reader, pending_rx, reader_tx) {
                     log::error!("{}", e);
                 }
             });
@@ -133,8 +130,8 @@ impl RPCClient for Client {
         let (writer_tx, writer_rx) = crossbeam::channel::bounded(1);
         {
             let server_id = server_id.clone();
-            tokio::spawn(async move {
-                if let Err(e) = loop_write(server_id, writer, writer_rx).await {
+            std::thread::spawn(move || {
+                if let Err(e) = loop_write(server_id, writer, writer_rx) {
                     log::error!("{}", e);
                 }
             });

@@ -7,10 +7,10 @@ use jsonrpc_core::Value;
 use parking_lot::RwLock;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::io::BufReader;
 use std::process::Stdio;
+use std::process::{Child, Command};
 use std::sync::Arc;
-use tokio::io::BufReader;
-use tokio::process::{Child, Command};
 
 pub struct Context<C, S>
 where
@@ -140,8 +140,8 @@ where
         let state = Arc::new(RwLock::new(State::default()));
         let vim = C::new(
             rpc::ClientID::VIM,
-            BufReader::new(tokio::io::stdin()),
-            tokio::io::stdout(),
+            BufReader::new(std::io::stdin()),
+            std::io::stdout(),
         );
         let root_path = std::env::current_dir().unwrap();
         let root_path = format!("file://{}/", root_path.to_str().unwrap());
@@ -176,7 +176,7 @@ where
     }
 
     // runs the binary specified in the config file for the given language_id
-    pub async fn start_server(&self, language_id: &str) -> Result<()> {
+    pub fn start_server(&self, language_id: &str) -> Result<()> {
         let server_config = self.config.server(language_id)?;
         let stderr: Stdio = std::fs::OpenOptions::new()
             .create(true)
@@ -203,9 +203,9 @@ where
 
         let rx = client.get_reader();
         let lc = self.clone();
-        tokio::spawn(async move {
+        std::thread::spawn(move || {
             for message in rx.iter() {
-                if let Err(err) = lc.handle_message(message).await {
+                if let Err(err) = lc.handle_message(message) {
                     log::error!("{}", err);
                 }
             }
@@ -215,11 +215,11 @@ where
     }
 
     /// spins up the readers for both vim and language server messages.
-    pub async fn run(&self) -> () {
+    pub fn run(&self) -> () {
         let rx = self.vim.get_reader();
         for msg in rx.iter() {
             let lc = self.clone();
-            if let Err(err) = lc.handle_vim_message(msg).await {
+            if let Err(err) = lc.handle_vim_message(msg) {
                 log::error!("error: {:?}", err);
             }
         }

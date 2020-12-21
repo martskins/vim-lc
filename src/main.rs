@@ -9,15 +9,14 @@ use anyhow::Result;
 use config::Config;
 use language_client::LanguageClient;
 use rpc::RPCClient;
+use std::io::BufReader;
 use std::str::FromStr;
-use tokio::io::BufReader;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let vim = crate::rpc::Client::new(
         rpc::ClientID::VIM,
-        BufReader::new(tokio::io::stdin()),
-        tokio::io::stdout(),
+        BufReader::new(std::io::stdin()),
+        std::io::stdout(),
     );
     let config = Config::parse(&vim)?;
 
@@ -39,7 +38,7 @@ async fn main() -> Result<()> {
         language_client::LanguageClient::new(vim, config);
 
     deadlock_detection();
-    Ok(lc.run().await)
+    Ok(lc.run())
 }
 
 fn deadlock_detection() {

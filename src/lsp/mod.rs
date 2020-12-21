@@ -23,7 +23,7 @@ where
     S: RPCClient,
 {
     // handles messages sent from vim to the language client
-    pub async fn handle_message(&self, message: rpc::Message) -> Result<()> {
+    pub fn handle_message(&self, message: rpc::Message) -> Result<()> {
         let ctx = Context::new(&message, self);
         match message {
             rpc::Message::MethodCall(msg) => match msg.method.as_str() {
@@ -65,7 +65,7 @@ where
 }
 
 #[allow(deprecated)]
-pub async fn initialize<C, S>(ctx: &Context<C, S>) -> Result<()>
+pub fn initialize<C, S>(ctx: &Context<C, S>) -> Result<()>
 where
     C: RPCClient,
     S: RPCClient,
