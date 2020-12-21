@@ -152,16 +152,16 @@ function! s:selection_range(...) abort
     let [line_end, column_end] = getpos("'>")[1:2]
 
     return { 'range': {
-          \ 'start': { 'line': line_start - 1, 'column': column_start },
-          \ 'end': { 'line': line_end - 1, 'column': column_end },
+          \ 'start': { 'line': line_start - 1, 'column': column_start - 1},
+          \ 'end': { 'line': line_end - 1, 'column': column_end - 1},
           \ }}
   endif
 
   let l:line = line('.')
   let l:col = col('.')
   return { 'range': {
-        \ 'start': { 'line': l:line - 1, 'column': l:col },
-        \ 'end': { 'line': l:line - 1, 'column': l:col },
+        \ 'start': { 'line': l:line - 1, 'column': l:col - 1},
+        \ 'end': { 'line': l:line - 1, 'column': l:col - 1},
         \ }}
 endfunction
 
@@ -173,7 +173,7 @@ function! s:position(...) abort
   return {
         \ 'line': l:line,
         \ 'column': l:col,
-        \ 'text_document': l:path,
+        \ 'filename': l:path,
         \}
 endfunction
 

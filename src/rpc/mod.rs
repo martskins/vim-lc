@@ -5,11 +5,11 @@ use crossbeam::channel::{Receiver, Sender};
 pub use protocol::*;
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
-use std::io::{BufRead, Read, Write};
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-// use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use std::io::{BufRead, Write};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 
 #[derive(Debug)]
 pub struct Client {

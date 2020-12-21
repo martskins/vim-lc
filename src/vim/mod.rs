@@ -187,7 +187,7 @@ pub fn apply_text_edits<C: RPCClient, S: RPCClient>(
         .collect();
 
     let changes = DocumentChanges {
-        text_document: filename.to_string(),
+        filename: filename.to_string(),
         changes,
     };
 
@@ -213,7 +213,7 @@ pub fn apply_workspace_edit<C: RPCClient, S: RPCClient>(
                     .replace(ctx.root_path.as_str(), "");
 
                 DocumentChanges {
-                    text_document,
+                    filename: text_document,
                     changes: tde
                         .edits
                         .into_iter()
@@ -469,7 +469,7 @@ pub fn resolve_code_lens_action<C: RPCClient, S: RPCClient>(
 ) -> Result<()> {
     let params: ResolveCodeActionParams = serde_json::from_value(params.into())?;
     let state = ctx.state.read();
-    let code_lens = state.code_lens.get(&params.position.text_document).cloned();
+    let code_lens = state.code_lens.get(&params.position.filename).cloned();
     drop(state);
 
     if code_lens.is_none() {
@@ -507,13 +507,13 @@ pub fn resolve_code_action<C: RPCClient, S: RPCClient>(
         None => {}
         Some(action) => match action {
             CodeActionOrCommand::CodeAction(action) => {
-                let action: &CodeAction = action;
-                if action.command.is_none() {
-                    log::error!("action has no command: {:?}", action);
-                    return Ok(());
+                if let Some(edit) = &action.edit {
+                    apply_workspace_edit(ctx, &edit)?;
                 }
 
-                crate::lsp::extensions::run_command(ctx, &action.command.as_ref().unwrap())?;
+                if let Some(command) = &action.command {
+                    crate::lsp::extensions::run_command(ctx, command)?;
+                }
             }
             CodeActionOrCommand::Command(command) => {
                 crate::lsp::extensions::run_command(ctx, command)?;
@@ -638,6 +638,7 @@ pub fn code_action<C: RPCClient, S: RPCClient>(ctx: &Context<C, S>, params: Para
     let params: SelectionRange = serde_json::from_value(params.into())?;
     let response: Vec<lsp_types::CodeActionOrCommand> =
         crate::lsp::text_document::code_action(ctx, params)?;
+    log::error!("{:?}", response);
     if response.is_empty() {
         return Ok(());
     }
@@ -679,7 +680,7 @@ pub fn code_lens_for_position<C: RPCClient, S: RPCClient>(
     position: CursorPosition,
 ) -> Result<Vec<lsp_types::CodeLens>> {
     let state = ctx.state.read();
-    let code_lens = state.code_lens.get(&position.text_document);
+    let code_lens = state.code_lens.get(&position.filename);
     if code_lens.is_none() {
         return Ok(vec![]);
     }

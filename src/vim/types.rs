@@ -78,7 +78,7 @@ pub enum HLGroup {
 
 #[derive(Debug, Serialize)]
 pub struct DocumentChanges {
-    pub text_document: String,
+    pub filename: String,
     pub changes: Vec<BufChanges>,
 }
 #[derive(Debug, Deserialize, Serialize)]
@@ -96,7 +96,7 @@ pub struct Action {
 
 #[derive(Debug, Serialize)]
 pub struct TextDocumentChanges {
-    pub text_document: String,
+    pub filename: String,
     pub edits: Vec<Lines>,
 }
 
@@ -244,7 +244,7 @@ pub struct Sign {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Diagnostic {
-    pub text_document: String,
+    pub position: String,
     pub line: u32,
     pub col: u32,
     pub text: String,
@@ -256,7 +256,7 @@ impl Into<Sign> for Diagnostic {
         Sign {
             id: 42_000 + self.line * DiagnosticSeverity::Hint as u32 + self.severity as u32,
             line: self.line,
-            file: self.text_document,
+            file: self.position,
             sign: match self.severity {
                 DiagnosticSeverity::Error => "VLCSignError".into(),
                 DiagnosticSeverity::Warning => "VLCSignWarn".into(),
@@ -274,7 +274,7 @@ impl Into<QuickfixItem> for Diagnostic {
 
         QuickfixItem {
             bufnr: 0,
-            filename: self.text_document,
+            filename: self.position,
             lnum: self.line,
             col: self.col,
             text: self.text,
@@ -285,13 +285,13 @@ impl Into<QuickfixItem> for Diagnostic {
 
 #[derive(Debug, Deserialize)]
 pub struct TextDocumentIdentifier {
-    pub text_document: String,
+    pub filename: String,
     pub language_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct TextDocumentContent {
-    pub text_document: String,
+    pub filename: String,
     pub text: String,
     pub language_id: String,
 }
@@ -299,7 +299,7 @@ pub struct TextDocumentContent {
 impl Into<TextDocumentIdentifier> for TextDocumentContent {
     fn into(self) -> TextDocumentIdentifier {
         TextDocumentIdentifier {
-            text_document: self.text_document,
+            filename: self.filename,
             language_id: self.language_id,
         }
     }
@@ -380,7 +380,7 @@ pub struct BufInfo {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CursorPosition {
-    pub text_document: String,
+    pub filename: String,
     pub language_id: String,
     #[serde(flatten)]
     pub position: Position,
@@ -391,11 +391,11 @@ impl Into<lsp_types::ReferenceParams> for CursorPosition {
         lsp_types::ReferenceParams {
             text_document_position: lsp_types::TextDocumentPositionParams {
                 text_document: lsp_types::TextDocumentIdentifier {
-                    uri: lsp_types::Url::from_file_path(self.text_document).unwrap(),
+                    uri: lsp_types::Url::from_file_path(self.filename).unwrap(),
                 },
                 position: lsp_types::Position {
-                    line: self.position.line - 1,
-                    character: self.position.column - 1,
+                    line: self.position.line,
+                    character: self.position.column,
                 },
             },
             work_done_progress_params: lsp_types::WorkDoneProgressParams::default(),
@@ -411,11 +411,11 @@ impl Into<lsp_types::TextDocumentPositionParams> for CursorPosition {
     fn into(self) -> lsp_types::TextDocumentPositionParams {
         lsp_types::TextDocumentPositionParams {
             text_document: lsp_types::TextDocumentIdentifier {
-                uri: lsp_types::Url::from_file_path(self.text_document).unwrap(),
+                uri: lsp_types::Url::from_file_path(self.filename).unwrap(),
             },
             position: lsp_types::Position {
-                line: self.position.line - 1,
-                character: self.position.column - 1,
+                line: self.position.line,
+                character: self.position.column,
             },
         }
     }
@@ -456,8 +456,8 @@ pub struct Position {
 impl Into<lsp_types::Position> for Position {
     fn into(self) -> lsp_types::Position {
         lsp_types::Position {
-            line: self.line - 1,
-            character: self.column - 1,
+            line: self.line,
+            character: self.column,
         }
     }
 }
@@ -465,7 +465,7 @@ impl Into<lsp_types::Position> for Position {
 #[derive(Debug, Deserialize)]
 pub struct SelectionRange {
     /// file name of the text document
-    pub text_document: String,
+    pub filename: String,
     /// language_id for the text document
     pub language_id: String,
     /// start position

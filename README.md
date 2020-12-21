@@ -94,10 +94,10 @@ rust = "ra_lsp_server"
 vim-lc doesn't set any default mappings, but you can use these suggested mappings:
 
 ```
-nnoremap <silent>gl         :call vlc#codeLensAction()<CR>
-nnoremap <silent>ga         :call vlc#codeAction()<CR>
-vnoremap <silent>ga         :call vlc#codeAction()<CR>
-nnoremap <silent>gd         :call vlc#goToDefinition()<CR>
+nnoremap <silent>gl         :call vlc#code_lens_action()<CR>
+nnoremap <silent>ga         :call vlc#code_action()<CR>
+vnoremap <silent>ga         :call vlc#code_action()<CR>
+nnoremap <silent>gd         :call vlc#definition()<CR>
 nnoremap <silent>K          :call vlc#hover()<CR>
 nnoremap <silent>R          :call vlc#rename()<CR>
 nnoremap <silent>gr         :call vlc#references()<CR>

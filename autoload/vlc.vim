@@ -93,8 +93,8 @@ function! vlc#run() abort
     return 0
   endif
 
-  " let l:binpath = expand('~/dev/vim-lc/target/debug/vlc')
-  let l:binpath = expand('~/dev/vim-lc/target/release/vlc')
+  let l:binpath = expand('~/dev/vim-lc/target/debug/vlc')
+  " let l:binpath = expand('~/dev/vim-lc/target/release/vlc')
   " let l:binpath = expand('~/.vim/plugged/vim-lc/target/release/vlc')
   if exists('g:vlc#binpath')
     let l:binpath = expand(g:vlc#binpath)

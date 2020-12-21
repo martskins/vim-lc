@@ -13,8 +13,10 @@ use anyhow::Result;
 use lsp_types::{
     notification::{self, Notification},
     request::{self, Request},
-    ClientCapabilities, ClientInfo, HoverClientCapabilities, InitializeParams, InitializeResult,
-    InitializedParams, TextDocumentClientCapabilities, TraceOption, Url,
+    ClientCapabilities, ClientInfo, CodeActionClientCapabilities, CodeActionKind,
+    CodeActionKindLiteralSupport, CodeActionLiteralSupport, HoverClientCapabilities,
+    InitializeParams, InitializeResult, InitializedParams, TextDocumentClientCapabilities,
+    TraceOption, Url,
 };
 
 impl<C, S> LanguageClient<C, S>
@@ -89,6 +91,25 @@ where
                 hover: Some(HoverClientCapabilities {
                     content_format: Some(ctx.config.hover.preferred_markup_kind.clone()),
                     ..Default::default()
+                }),
+                code_action: Some(CodeActionClientCapabilities {
+                    code_action_literal_support: Some(CodeActionLiteralSupport {
+                        code_action_kind: CodeActionKindLiteralSupport {
+                            value_set: [
+                                CodeActionKind::QUICKFIX,
+                                CodeActionKind::REFACTOR,
+                                CodeActionKind::REFACTOR_EXTRACT,
+                                CodeActionKind::REFACTOR_INLINE,
+                                CodeActionKind::REFACTOR_REWRITE,
+                                CodeActionKind::SOURCE,
+                                CodeActionKind::SOURCE_ORGANIZE_IMPORTS,
+                            ]
+                            .iter()
+                            .map(|kind| kind.as_str().to_owned())
+                            .collect(),
+                        },
+                    }),
+                    ..CodeActionClientCapabilities::default()
                 }),
                 ..Default::default()
             }),

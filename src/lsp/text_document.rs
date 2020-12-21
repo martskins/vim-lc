@@ -54,18 +54,31 @@ pub fn code_action<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::SelectionRange,
 ) -> Result<Vec<CodeActionOrCommand>> {
+    let range = Range {
+        start: input.range.start.into(),
+        end: input.range.end.into(),
+    };
+
+    let diagnostics: Vec<_> = ctx
+        .state
+        .read()
+        .diagnostics
+        .get(&input.filename)
+        .unwrap_or(&vec![])
+        .iter()
+        .filter(|dn| dn.range.start <= range.start && dn.range.end >= range.end)
+        .cloned()
+        .collect();
+
     let params = CodeActionParams {
         text_document: TextDocumentIdentifier {
-            uri: Url::from_file_path(input.text_document).unwrap(),
+            uri: Url::from_file_path(input.filename).unwrap(),
         },
         work_done_progress_params: Default::default(),
         partial_result_params: Default::default(),
-        range: Range {
-            start: input.range.start.into(),
-            end: input.range.end.into(),
-        },
+        range,
         context: CodeActionContext {
-            diagnostics: vec![],
+            diagnostics,
             only: None,
         },
     };
@@ -92,7 +105,7 @@ pub fn code_lens<C: RPCClient, S: RPCClient>(
 ) -> Result<Vec<CodeLens>> {
     let params = CodeLensParams {
         text_document: TextDocumentIdentifier {
-            uri: Url::from_file_path(input.text_document.clone()).unwrap(),
+            uri: Url::from_file_path(input.filename.clone()).unwrap(),
         },
         work_done_progress_params: Default::default(),
         partial_result_params: Default::default(),
@@ -111,7 +124,7 @@ pub fn code_lens<C: RPCClient, S: RPCClient>(
     ctx.state
         .write()
         .code_lens
-        .insert(input.text_document.into(), response.clone());
+        .insert(input.filename.into(), response.clone());
     Ok(response)
 }
 
@@ -160,7 +173,7 @@ pub fn did_save<C: RPCClient, S: RPCClient>(
 ) -> Result<()> {
     let input = DidSaveTextDocumentParams {
         text_document: TextDocumentIdentifier {
-            uri: Url::from_file_path(input.text_document).unwrap(),
+            uri: Url::from_file_path(input.filename).unwrap(),
         },
         text: None,
     };
@@ -175,15 +188,11 @@ pub fn did_close<C: RPCClient, S: RPCClient>(
     ctx: &Context<C, S>,
     input: vim::TextDocumentContent,
 ) -> Result<()> {
-    let _ = ctx
-        .state
-        .write()
-        .text_documents
-        .remove(&input.text_document);
+    let _ = ctx.state.write().text_documents.remove(&input.filename);
 
     let input = DidCloseTextDocumentParams {
         text_document: TextDocumentIdentifier {
-            uri: Url::from_file_path(input.text_document).unwrap(),
+            uri: Url::from_file_path(input.filename).unwrap(),
         },
     };
 
@@ -201,7 +210,7 @@ pub fn did_change<C: RPCClient, S: RPCClient>(
         .state
         .read()
         .text_documents
-        .get(&input.text_document)
+        .get(&input.filename)
         .cloned()
         .unwrap_or_default();
     // let (version, _) = state
@@ -213,7 +222,7 @@ pub fn did_change<C: RPCClient, S: RPCClient>(
     // TODO: not sure if version should actually be an u64
     let input = DidChangeTextDocumentParams {
         text_document: VersionedTextDocumentIdentifier {
-            uri: Url::from_file_path(input.text_document).unwrap(),
+            uri: Url::from_file_path(input.filename).unwrap(),
             version: version as i32,
         },
         content_changes: vec![TextDocumentContentChangeEvent {
@@ -252,13 +261,13 @@ pub fn did_open<C: RPCClient, S: RPCClient>(
     input: vim::TextDocumentContent,
 ) -> Result<()> {
     let mut state = ctx.state.write();
-    let mut version = state.text_documents.get(&input.text_document).cloned();
+    let mut version = state.text_documents.get(&input.filename).cloned();
 
     if version.is_none() {
         let v = (0, input.text.split('\n').map(|l| l.to_owned()).collect());
         state
             .text_documents
-            .insert(input.text_document.clone(), v.clone());
+            .insert(input.filename.clone(), v.clone());
         version = Some(v);
     }
     drop(state);
@@ -266,7 +275,7 @@ pub fn did_open<C: RPCClient, S: RPCClient>(
     let (version, _) = version.unwrap();
     let input = DidOpenTextDocumentParams {
         text_document: TextDocumentItem {
-            uri: Url::from_file_path(input.text_document).unwrap(),
+            uri: Url::from_file_path(input.filename).unwrap(),
             language_id: input.language_id,
             version: version as i32,
             text: input.text,
@@ -340,7 +349,7 @@ pub fn publish_diagnostics<C: RPCClient, S: RPCClient>(
         .diagnostics
         .into_iter()
         .map(|d| vim::Diagnostic {
-            text_document: uri.clone(),
+            position: uri.clone(),
             line: d.range.start.line + 1,
             col: d.range.start.character + 1,
             text: d.message,
