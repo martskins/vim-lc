@@ -1,17 +1,8 @@
 # VIM Language Client
 
-This plugin is an LSP client implementation for neovim (vim8 not supported yet), heavily inspired in
+This plugin is an LSP client implementation for neovim (vim8 not supported yet), heavily inspired by
 `LanguageClient-neovim` (https://github.com/autozimu/LanguageClient-neovim). The project is still
 in early development so use at your own risk :grin:.
-
-## DEPENDENCIES
-
-vim-lc uses `fzf` to show references, implementation, and other commands that result in a list
-showing. If you don't have `fzf` installed, you should install it by following the instructions
-found in: https://github.com/junegunn/fzf.vim#installation
-
-In addition to this, vim-lc is developed on top neovim, so it expects things like `:terminal` to be
-available. This is currently used for code lens actions.
 
 ## INSTALLATION
 
@@ -32,42 +23,46 @@ config option by adding this line in your `.vimrc`.
 ```
 let g:vlc#binpath = '~/path/to/vlc/binary'
 ```
-
-vim-lc uses a toml config file for the client's config options. On startup it will try to locate the
-file under `~/.vlc/config.toml`. If you want to use a different path for your config file you can
-use the following config value.
-
-```
-let g:vlc#config = '~/path/to/vlc/config'
-```
-
 ## CONFIG
 
-As mentioned before, vim-lc uses a `toml` file as a way to configure the client.
+vim-lc has a rather basic configuration API, but to make it run properly you
+must at least configure the language server, you can do that by adding a
+dictionary under the variable `g:vlc#servers` which has filetypes as keys, and
+server configuration as values:
 
-The config file has four root levels configs, although all of them are optional. These root level
-configs are `log`, `servers`, `diagnostics`, `completion`.
-
-The available options for each of them are:
-
-```toml
-[log]
-level = "debug"     # one of 'debug', 'warn', 'info', 'error'
-output = "~/.vlc/log.txt"
-
-[diagnostics]
-enabled = true
-auto_open = true    # if set to true, opens quickfix list after populating it with diagnostics
-show_signs = false  # if set to true it shows gutter signs for diagnostics
-
-[completion]
-enabled = true
-strategy = "ncm2"   # one of "ncm2" or "omnifunc"
-
-[servers]           # each item under this key has the form of `{filetype}: {lsp_server_binary}`
-go = "gopls"
-rust = "ra_lsp_server"
 ```
+let g:vlc#servers = {}
+let g:vlc#servers.go = { 'command': 'gopls', name: 'gopls' }
+let g:vlc#servers.rust = { 'command': 'rust-analyzer', name: 'rust-analyzer' }
+```
+
+As previously said, the values on the above map are server commands, the
+commands have the following schema:
+
+```
+{
+  name: String,
+  command: String,
+  args: [String]?,
+  initializationOptions: Map?,
+}
+```
+
+The initializationOptions field in the command is sent to the server upon
+initialization, and it's value is specific to each server, so you should read
+the server's documentation if you need to send something in it.
+
+By default, vim-lc sets the log level to error and the log output to
+`/tmp/vlc.log`, if you wish to change that you can do that by adding the
+following to your vimrc:
+
+
+```
+let g:vlc#log#level = 'info'
+let g:vlc#log#output = '/path/you/desire.log'
+```
+
+For a more complete configuration example see `minvimrc` in this repository.
 
 ## COMMANDS
 
@@ -91,18 +86,16 @@ rust = "ra_lsp_server"
 
 ## MAPPINGS
 
-vim-lc doesn't set any default mappings, but you can use these suggested mappings:
+vim-lc doesn't set any default mappings, but it provides plug mappings you can configure in your vimrc:
 
 ```
-nnoremap <silent>gl         :call vlc#code_lens_action()<CR>
-nnoremap <silent>ga         :call vlc#code_action()<CR>
-vnoremap <silent>ga         :call vlc#code_action()<CR>
-nnoremap <silent>gd         :call vlc#definition()<CR>
-nnoremap <silent>K          :call vlc#hover()<CR>
-nnoremap <silent>R          :call vlc#rename()<CR>
-nnoremap <silent>gr         :call vlc#references()<CR>
-nnoremap <silent>gi         :call vlc#implementation()<CR>
-nnoremap <c-s>              :call vlc#start()<CR>
-nnoremap <c-k>              :call vlc#stop()<CR>
-
+nmap <silent>gd <Plug>(vlc-definition)
+nmap <silent>gi <Plug>(vlc-implementation)
+nmap <silent>gr <Plug>(vlc-references)
+nmap <silent>ga <Plug>(vlc-code-action)
+nmap <silent>gl <Plug>(vlc-code-lens)
+nmap <silent>R  <Plug>(vlc-rename)
+nmap <silent>K  <Plug>(vlc-hover)
+nmap <silent>F  <Plug>(vlc-formatting)
+nmap <silent>E  <Plug>(vlc-diagnostic-detail)
 ```
